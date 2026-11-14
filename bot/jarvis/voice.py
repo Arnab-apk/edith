@@ -3,15 +3,23 @@
     text = await transcribe(ogg_bytes)        # Telegram voice note (.oga/OGG-Opus) or any audio
     ogg  = await synthesize("Hello there")    # OGG/Opus bytes ready for bot.send_voice
 
+Works on any laptop: with a usable NVIDIA GPU it runs CUDA float16, otherwise CPU int8 with
+settings tuned for short spoken commands (greedy decoding, physical-core threads, VAD). Measured
+on a 4-core Ryzen laptop CPU, a 5 s command takes ~2 s with "small" and ~1 s with "base".
+
 Env:
-  WHISPER_MODEL    faster-whisper model name/path (default "small")
+  WHISPER_MODEL    "auto" (default: small on GPU or a >=4-core CPU, base on smaller CPUs)
+                   or any faster-whisper name/path (tiny, base, small, base.en, ...)
   WHISPER_DEVICE   "auto" (default: CUDA float16 if usable, else CPU int8), "cuda" or "cpu"
-  WHISPER_LANGUAGE optional language code (e.g. "en"); empty = auto-detect
+  WHISPER_LANGUAGE "auto" (default, detect) or a code such as "en" (faster and more accurate)
+  WHISPER_BEAM     beam size (default 5 on GPU, 1 on CPU)
+  WHISPER_PROMPT   vocabulary hint for short commands (default mentions "Edith" + command words)
   TTS_VOICE        edge-tts voice (default "en-GB-SoniaNeural")
   TTS_RATE         edge-tts rate, e.g. "+5%" (default "+0%")
 
 All decoding/encoding and Whisper inference are blocking, so they go through run_blocking.
-The Whisper model loads once, lazily, on the first transcription.
+The model loads once; warmup() (called in the background at bot startup) hides the load and
+any first-run download, so the first voice note is as fast as the rest.
 """
 from __future__ import annotations
 
@@ -32,12 +40,18 @@ log = logging.getLogger("jarvis.voice")
 
 SAMPLE_RATE = 16000          # Whisper input rate
 OPUS_RATE = 48000            # Telegram voice notes: OGG/Opus 48 kHz mono
-MAX_TTS_CHARS = 1500         # longer replies are spoken truncated (full text is still sent)
+MAX_TTS_CHARS = 500          # spoken answers stay short; the full text is always sent too
 MAX_AUDIO_SECONDS = 10 * 60  # refuse to transcribe absurdly long audio
+DEFAULT_PROMPT = ("Edith, screenshot, CPU, RAM, battery, processes, volume, mute, lock, "
+                  "shut down, restart, open Chrome, YouTube, remind me.")
+STICKY_LANG_PROB = 0.8       # auto mode: reuse a confidently detected language (saves an encoder pass)
+RECHECK_LOGPROB = -0.9       # ...and re-detect when a forced-language result looks poor
 
 _model: Any = None
 _model_desc = ""
+_model_device = ""
 _model_lock = threading.Lock()
+_sticky_lang: str | None = None  # last confidently detected language (WHISPER_LANGUAGE=auto)
 
 
 class VoiceError(RuntimeError):
@@ -101,15 +115,46 @@ def _cuda_available() -> bool:
         return False
 
 
+def _physical_cores() -> int:
+    try:
+        import psutil
+        return psutil.cpu_count(logical=False) or max(1, (os.cpu_count() or 2) // 2)
+    except Exception:  # noqa: BLE001
+        return max(1, (os.cpu_count() or 2) // 2)
+
+
+def _ram_gb() -> float:
+    try:
+        import psutil
+        return psutil.virtual_memory().total / 2**30
+    except Exception:  # noqa: BLE001
+        return 8.0
+
+
+def pick_model(device: str) -> str:
+    """WHISPER_MODEL, or for "auto" the best model that stays fast on this hardware."""
+    name = os.getenv("WHISPER_MODEL", "auto").strip() or "auto"
+    if name.lower() != "auto":
+        return name
+    if device == "cuda":
+        return "small"
+    # CPU: "small" is ~2 s per command on 4 cores; on 2-core / low-RAM laptops "base" (~2x faster).
+    return "small" if _physical_cores() >= 4 and _ram_gb() >= 6 else "base"
+
+
+def language() -> str | None:
+    lang = os.getenv("WHISPER_LANGUAGE", "auto").strip().lower()
+    return None if lang in ("", "auto") else lang
+
+
 def _load_model() -> Any:
-    """Load faster-whisper once: CUDA float16 first (RTX 3050), CPU int8 fallback."""
-    global _model, _model_desc
+    """Load faster-whisper once: CUDA float16 when a GPU really works, else CPU int8."""
+    global _model, _model_desc, _model_device
     with _model_lock:
         if _model is not None:
             return _model
         from faster_whisper import WhisperModel  # heavy import, only when first needed
 
-        name = os.getenv("WHISPER_MODEL", "small").strip() or "small"
         pref = os.getenv("WHISPER_DEVICE", "auto").strip().lower() or "auto"
         attempts: list[tuple[str, str]] = []
         if pref in ("auto", "cuda") and _cuda_available():
@@ -118,38 +163,158 @@ def _load_model() -> Any:
             attempts.append(("cpu", "int8"))
         last: Exception | None = None
         for device, compute in attempts:
+            name = pick_model(device)
             try:
-                m = WhisperModel(name, device=device, compute_type=compute)
+                kw: dict[str, Any] = {}
+                if device == "cpu":
+                    kw["cpu_threads"] = min(8, _physical_cores())
+                m = WhisperModel(name, device=device, compute_type=compute, **kw)
                 if device == "cuda":
                     # Missing cuBLAS/cuDNN DLLs usually only fail at first inference: probe now.
                     segs, _ = m.transcribe(np.zeros(SAMPLE_RATE // 2, dtype=np.float32), beam_size=1)
                     list(segs)
-                _model, _model_desc = m, f"{name} on {device}/{compute}"
+                _model, _model_device = m, device
+                _model_desc = f"{name} on {device}/{compute}"
                 log.info("Whisper loaded: %s", _model_desc)
                 return _model
             except Exception as e:  # noqa: BLE001 - try the next device
                 log.warning("Whisper %s on %s/%s failed: %s", name, device, compute, e)
                 last = e
-        raise VoiceError(f"could not load Whisper model {name!r}: {last}")
+        raise VoiceError(f"could not load the speech model: {last}")
+
+
+def _is_prompt_echo(text: str, prompt: str) -> bool:
+    """Whisper sometimes 'hears' its own initial_prompt in noise. Never treat that as a command."""
+    norm = lambda s: re.sub(r"[^a-z0-9 ]", "", s.lower()).split()  # noqa: E731
+    t, p = norm(text), norm(prompt)
+    if len(t) < 4:
+        return False
+    joined = " ".join(p)
+    return " ".join(t) in joined  # every word, in order, comes straight from the prompt
 
 
 def _transcribe_sync(data: bytes) -> str:
     pcm = decode_audio(data)
     if pcm.size < SAMPLE_RATE // 4:  # < 0.25 s
         return ""
+    global _sticky_lang
     model = _load_model()
-    lang = os.getenv("WHISPER_LANGUAGE", "").strip() or None
-    segments, _info = model.transcribe(pcm, language=lang, beam_size=5, vad_filter=True)
-    return " ".join(s.text.strip() for s in segments).strip()
+    beam = int(os.getenv("WHISPER_BEAM", "0") or 0) or (5 if _model_device == "cuda" else 1)
+    prompt = os.getenv("WHISPER_PROMPT", DEFAULT_PROMPT).strip()
+    fixed = language()
+
+    def run(lang: str | None) -> tuple[str, float, Any]:
+        segments, info = model.transcribe(
+            pcm, language=lang, beam_size=beam, vad_filter=True,
+            initial_prompt=prompt or None, condition_on_previous_text=False, without_timestamps=True)
+        segs = [s for s in segments
+                if not (getattr(s, "no_speech_prob", 0.0) > 0.6 and getattr(s, "avg_logprob", 0.0) < -1.0)]
+        lp = min((getattr(s, "avg_logprob", 0.0) for s in segs), default=0.0)
+        return " ".join(s.text.strip() for s in segs if s.text.strip()).strip(), lp, info
+
+    if fixed:
+        text, _lp, _info = run(fixed)
+    else:
+        guess = _sticky_lang
+        text, lp, info = run(guess)
+        if guess and (not text or lp < RECHECK_LOGPROB):  # maybe a different language now
+            text, lp, info = run(None)
+            guess = None
+        if guess is None:
+            prob = getattr(info, "language_probability", 0.0) or 0.0
+            _sticky_lang = info.language if (text and prob >= STICKY_LANG_PROB) else None
+    if prompt and _is_prompt_echo(text, prompt):
+        log.info("dropping transcript that only echoes the vocabulary prompt: %r", text)
+        return ""
+    return text
+
+
+# ------------------------------------------------------------------ NVIDIA hosted Whisper (Riva gRPC)
+NVIDIA_STT_URI = "grpc.nvcf.nvidia.com:443"
+NVIDIA_STT_FUNCTION_ID = "b702f636-f60c-4a3d-a6f4-f3568c13bd7d"  # openai/whisper-large-v3 on build.nvidia.com
+_last_engine = ""
+
+
+def _nvidia_key() -> str:
+    for name in ("NVIDIA_API_KEY", "LLM_API_KEY"):
+        v = os.getenv(name, "").strip()
+        if v.startswith("nvapi-"):
+            return v
+    return ""
+
+
+def stt_provider() -> str:
+    """"nvidia" (hosted whisper-large-v3, needs an nvapi- key) or "local" (faster-whisper).
+    STT_PROVIDER=auto (default) uses nvidia whenever an nvapi- key is configured."""
+    pref = os.getenv("STT_PROVIDER", "auto").strip().lower() or "auto"
+    if pref == "local":
+        return "local"
+    return "nvidia" if _nvidia_key() else "local"
+
+
+def _wav_bytes(pcm: np.ndarray) -> bytes:
+    import wave
+
+    buf = io.BytesIO()
+    with wave.open(buf, "wb") as w:
+        w.setnchannels(1)
+        w.setsampwidth(2)
+        w.setframerate(SAMPLE_RATE)
+        w.writeframes((np.clip(pcm, -1.0, 1.0) * 32767).astype(np.int16).tobytes())
+    return buf.getvalue()
+
+
+def _transcribe_nvidia_sync(data: bytes) -> str:
+    import riva.client  # small gRPC client (nvidia-riva-client); no model download
+
+    pcm = decode_audio(data)
+    if pcm.size < SAMPLE_RATE // 5:
+        return ""
+    auth = riva.client.Auth(uri=NVIDIA_STT_URI, use_ssl=True, metadata_args=[
+        ["function-id", os.getenv("NVIDIA_STT_FUNCTION_ID", "").strip() or NVIDIA_STT_FUNCTION_ID],
+        ["authorization", "Bearer " + _nvidia_key()]])
+    cfg = riva.client.RecognitionConfig(language_code=language() or "en", max_alternatives=1,
+                                        enable_automatic_punctuation=True)
+    resp = riva.client.ASRService(auth).offline_recognize(_wav_bytes(pcm), cfg)
+    return " ".join(r.alternatives[0].transcript.strip() for r in resp.results if r.alternatives).strip()
 
 
 async def transcribe(data: bytes) -> str:
-    """Speech -> text. Returns "" when nothing intelligible was said."""
-    return await run_blocking(_transcribe_sync, bytes(data))
+    """Speech -> text. Returns "" when nothing intelligible was said.
+    Hosted NVIDIA Whisper first when configured; the local model is the automatic fallback."""
+    global _last_engine
+    data = bytes(data)
+    if stt_provider() == "nvidia":
+        try:
+            import asyncio
+            text = await asyncio.wait_for(run_blocking(_transcribe_nvidia_sync, data), timeout=25)
+            _last_engine = "whisper-large-v3 on NVIDIA"
+            return text
+        except VoiceError:
+            raise
+        except Exception as e:  # noqa: BLE001 - network/quota problems must not kill voice control
+            log.warning("NVIDIA speech-to-text failed (%s) - using the local model", type(e).__name__)
+    text = await run_blocking(_transcribe_sync, data)
+    _last_engine = _model_desc or "local Whisper"
+    return text
+
+
+def warmup() -> str:
+    """Load the model (downloading it on first run) and run one tiny inference. Blocking."""
+    if stt_provider() == "nvidia":
+        return "whisper-large-v3 on NVIDIA (hosted, nothing to load)"
+    model = _load_model()
+    segs, _ = model.transcribe(np.zeros(SAMPLE_RATE, dtype=np.float32), beam_size=1,
+                               language=language() or "en", without_timestamps=True)
+    list(segs)
+    return _model_desc
 
 
 def model_info() -> str:
-    return _model_desc or "not loaded yet"
+
+    if stt_provider() == "nvidia":
+        return "whisper-large-v3 on NVIDIA (hosted); local fallback: " + (_model_desc or "not loaded")
+    return _model_desc or "loading…"
 
 
 # ====================================================================== TTS
@@ -165,6 +330,7 @@ _MD_RE = [
 
 def speakable(text: str) -> str:
     """Strip markdown/URLs and cap length so TTS reads naturally."""
+    text = re.sub(r"<think>.*?(</think>|$)", " ", text or "", flags=re.S | re.I)
     for rx, rep in _MD_RE:
         text = rx.sub(rep, text)
     text = text.strip()

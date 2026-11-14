@@ -91,6 +91,7 @@ class Action:
 
 
 REGISTRY: dict[str, Action] = {}
+_EVER: dict[str, Action] = {}  # every real action ever registered (survives REGISTRY.clear())
 
 # Modules under bot/actions/ that load_all() imports. Missing ones are skipped with a warning.
 ACTION_MODULES = ["system", "power", "shell", "files", "desktop", "media", "automation"]
@@ -164,6 +165,8 @@ def action(name: str, description: str, *, dangerous: bool = False, category: st
         REGISTRY[name] = Action(name=name, description=description.strip(), func=func,
                                 dangerous=dangerous, category=category,
                                 input_schema=build_schema(func, params))
+        if func.__module__.startswith("bot.actions."):
+            _EVER[name] = REGISTRY[name]
         return func
 
     return deco
@@ -248,4 +251,6 @@ def load_all() -> dict[str, Action]:
                 log.exception("action module %s failed to import", mod)
         except Exception:
             log.exception("action module %s failed to import", mod)
+    for name, act in _EVER.items():  # modules import only once: restore anything cleared since
+        REGISTRY.setdefault(name, act)
     return REGISTRY

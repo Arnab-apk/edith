@@ -9,7 +9,8 @@ from pathlib import Path
 from dotenv import load_dotenv
 
 ROOT = Path(__file__).resolve().parent.parent
-load_dotenv(ROOT / ".env")
+if not os.getenv("EDITH_SKIP_DOTENV"):  # the test suite must never read the real .env
+    load_dotenv(ROOT / ".env", override=True)  # .env wins over stray system variables
 
 
 @dataclass(frozen=True)

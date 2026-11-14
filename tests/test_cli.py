@@ -30,3 +30,40 @@ def test_parser():
     ns = cli.build_parser().parse_args(["config", "set", "LLM_MODEL", "x"])
     assert (ns.action, ns.key, ns.value) == ("set", "LLM_MODEL", "x")
     assert cli.build_parser().parse_args(["autostart", "status"]).state == "status"
+
+
+def test_single_instance_lock(tmp_path, monkeypatch):
+    lock = tmp_path / "edith.lock"
+    assert cli.acquire_single_instance(lock) is True
+    first = cli._LOCK_HANDLE
+    assert cli.acquire_single_instance(lock) is False      # second bot is refused
+    first.close()
+    monkeypatch.setattr(cli, "_LOCK_HANDLE", None)
+    assert cli.acquire_single_instance(lock) is True       # free again after the first exits
+    cli._LOCK_HANDLE.close()
+
+
+def test_is_local_ollama():
+    assert cli.is_local_ollama("http://localhost:11434/v1")
+    assert cli.is_local_ollama("http://127.0.0.1:11434")
+    assert not cli.is_local_ollama("https://generativelanguage.googleapis.com/v1beta/openai/")
+    assert not cli.is_local_ollama("http://localhost:11434.evil.com/v1")
+
+
+def test_probe_llm_reports_hang_and_never_leaks_key(monkeypatch):
+    import httpx
+
+    env = {"LLM_BASE_URL": "http://x/v1", "LLM_MODEL": "m", "LLM_API_KEY": "SECRETKEY"}
+
+    def hang(*a, **k):
+        raise httpx.ReadTimeout("slow")
+    monkeypatch.setattr(cli.httpx, "post", hang)
+    ok, detail = cli.probe_llm(env, timeout=1)
+    assert not ok and "no answer" in detail and "SECRETKEY" not in detail
+
+    class R:
+        status_code = 401
+        text = "bad key SECRETKEY"
+    monkeypatch.setattr(cli.httpx, "post", lambda *a, **k: R())
+    ok, detail = cli.probe_llm(env)
+    assert not ok and "401" in detail and "SECRETKEY" not in detail

@@ -40,15 +40,11 @@ KNOWN_KEYS = ["BOT_TOKEN", "ALLOWED_USER_IDS", "SHELL_TIMEOUT", "UPLOAD_DIR", "L
               "WHISPER_MODEL", "TTS_VOICE"]
 
 # provider presets: key -> (label, LLM_PROVIDER, base_url, default model, key needed?)
-PROVIDERS = {
-    "1": ("Claude - Anthropic API key (paid, best quality)", "anthropic", "", "claude-opus-5-5", True),
-    "2": ("Ollama on this PC (free, private, offline)", "openai_compat", "http://localhost:11434/v1", "qwen3:8b", False),
-    "3": ("Google Gemini (free tier key: aistudio.google.com)", "openai_compat",
-          "https://generativelanguage.googleapis.com/v1beta/openai/", "gemini-2.5-flash", True),
-    "4": ("Groq (free tier key: console.groq.com, very fast)", "openai_compat",
-          "https://api.groq.com/openai/v1", "llama-3.3-70b-versatile", True),
-    "5": ("Skip - plain commands only", "", "", "", False),
-}
+# One setup for everyone: NVIDIA NIM (free key from build.nvidia.com) powers both the AI brain
+# and speech-to-text (hosted whisper-large-v3). Advanced users can still point LLM_* elsewhere
+# with `control config set`.
+NVIDIA_BASE_URL = "https://integrate.api.nvidia.com/v1"
+NVIDIA_MODEL = "nvidia/nemotron-3.5-bolt-e4b"  # measured: correct tool calls in under 1 s
 
 for _stream in (sys.stdout, sys.stderr):  # Windows consoles default to cp1252: ✓/… would crash
     try:
@@ -190,33 +186,38 @@ def cmd_setup(_: argparse.Namespace | None = None) -> int:
         ids = ",".join([str(owner)] + [x for x in re.split(r"[,\s]+", extra) if x.isdigit()])
         con.print(f"  [green]✓[/] allowed: {ids}")
 
-    # 3. AI brain
-    con.print("\n[bold]3. Edith AI brain[/] (voice + natural language; plain commands work without it)")
-    for k, (label, *_rest) in PROVIDERS.items():
-        con.print(f"  {k}) {label}")
-    choice = Prompt.ask("  Choose", choices=list(PROVIDERS), default="2")
-    _, provider, base, model, needs_key = PROVIDERS[choice]
+    # 3. AI brain + speech: one NVIDIA key does both
+    con.print("\n[bold]3. NVIDIA key[/] (free: powers Edith's AI brain and voice recognition)\n"
+              "  Open [bold]https://build.nvidia.com[/], sign in, click your profile -> [bold]API Keys[/] -> "
+              "Generate. It starts with nvapi-")
     upd = {"BOT_TOKEN": token, "ALLOWED_USER_IDS": ids}
-    if provider == "anthropic":
-        key = getpass.getpass("  Anthropic API key (hidden): ").strip() or env.get("ANTHROPIC_API_KEY", "")
-        upd |= {"LLM_PROVIDER": "anthropic", "ANTHROPIC_API_KEY": key,
-                "CLAUDE_MODEL": Prompt.ask("  Claude model", default=env.get("CLAUDE_MODEL") or model)}
-    elif provider:
-        key = "ollama"
-        if needs_key:
-            key = getpass.getpass("  API key (hidden): ").strip() or env.get("LLM_API_KEY", "")
-        model = Prompt.ask("  Model", default=model)
-        upd |= {"LLM_PROVIDER": provider, "LLM_BASE_URL": base, "LLM_API_KEY": key, "LLM_MODEL": model}
-        if choice == "2":
-            _ollama_prepare(model)
+    key = env.get("LLM_API_KEY", "")
+    if not (key.startswith("nvapi-") and Confirm.ask("Keep the NVIDIA key already saved?", default=True)):
+        key = ""
+    while True:
+        if not key:
+            key = getpass.getpass("  Paste the NVIDIA key (hidden, Enter to skip): ").strip()
+        if not key:
+            con.print("  [yellow]Skipped[/] - instant commands and slash commands work; "
+                      "add the key later with: control setup")
+            break
+        probe_env = {"LLM_BASE_URL": NVIDIA_BASE_URL, "LLM_MODEL": NVIDIA_MODEL, "LLM_API_KEY": key}
+        with con.status("Testing the key with a real question…"):
+            ok, detail = probe_llm(probe_env, timeout=40)
+        if ok:
+            con.print(f"  [green]✓[/] {detail}")
+            break
+        con.print(f"  [red]That did not work:[/] {detail}")
+        key = ""
+    if key:
+        upd |= {"LLM_PROVIDER": "openai_compat", "LLM_BASE_URL": NVIDIA_BASE_URL,
+                "LLM_API_KEY": key, "LLM_MODEL": NVIDIA_MODEL}
 
-    # 4. misc
-    con.print("\n[bold]4. Extras[/]")
-    upd["TTS_VOICE"] = Prompt.ask("  Voice for spoken replies", default=env.get("TTS_VOICE", "en-GB-SoniaNeural"))
-    upd["UPLOAD_DIR"] = Prompt.ask("  Folder for files you send from the phone",
-                                   default=env.get("UPLOAD_DIR", str(Path.home() / "Downloads" / "TelegramUploads")))
-    upd.setdefault("SHELL_TIMEOUT", env.get("SHELL_TIMEOUT", "60"))
-    upd.setdefault("WHISPER_MODEL", env.get("WHISPER_MODEL", "small"))
+    # sensible defaults, no questions (change later with: control config set KEY VALUE)
+    upd["TTS_VOICE"] = env.get("TTS_VOICE") or "en-GB-SoniaNeural"
+    upd["UPLOAD_DIR"] = env.get("UPLOAD_DIR") or str(Path.home() / "Downloads" / "TelegramUploads")
+    upd["SHELL_TIMEOUT"] = env.get("SHELL_TIMEOUT") or "60"
+    upd["WHISPER_MODEL"] = env.get("WHISPER_MODEL") or "small"
 
     if ENV_FILE.exists():
         (ROOT / ".env.bak").write_text(ENV_FILE.read_text(encoding="utf-8"), encoding="utf-8")
@@ -232,13 +233,87 @@ def cmd_setup(_: argparse.Namespace | None = None) -> int:
     return 0
 
 
-def _ollama_prepare(model: str) -> None:
-    if not shutil.which("ollama"):
-        con.print("  [yellow]Ollama is not installed[/]: get it from https://ollama.com/download, then run "
-                  f"[bold]ollama pull {model}[/]")
-        return
-    if Confirm.ask(f"  Download {model} with Ollama now?", default=True):
-        subprocess.run(["ollama", "pull", model], check=False)
+_LOCK_HANDLE = None  # kept open for the life of the process
+
+
+def acquire_single_instance(lock_path: Path | None = None) -> bool:
+    """True if this is the only running bot. Two bots on one token fight over Telegram updates
+    ("Conflict: terminated by other getUpdates request") and commands get lost."""
+    global _LOCK_HANDLE
+    lock_path = lock_path or (ROOT / "data" / "edith.lock")
+    lock_path.parent.mkdir(parents=True, exist_ok=True)
+    fh = open(lock_path, "a+")
+    try:
+        if os.name == "nt":
+            import msvcrt
+            fh.seek(0)
+            msvcrt.locking(fh.fileno(), msvcrt.LK_NBLCK, 1)
+        else:
+            import fcntl
+            fcntl.flock(fh, fcntl.LOCK_EX | fcntl.LOCK_NB)
+    except OSError:
+        fh.close()
+        return False
+    _LOCK_HANDLE = fh
+    return True
+
+
+def is_local_ollama(base_url: str) -> bool:
+    return bool(re.match(r"^https?://(localhost|127\.0\.0\.1):11434(/|$)", base_url.strip()))
+
+
+def ollama_up(timeout: float = 2.0) -> bool:
+    try:
+        return httpx.get("http://localhost:11434/api/version", timeout=timeout).status_code == 200
+    except Exception:
+        return False
+
+
+def ensure_ollama(model: str, wait_s: int = 30) -> str | None:
+    """Start the local Ollama server if needed and check the model is downloaded.
+    Returns None when ready, else a human-readable problem."""
+    if not ollama_up():
+        exe = shutil.which("ollama")
+        if not exe:
+            return "Ollama is not installed. Get it from https://ollama.com/download"
+        flags = getattr(subprocess, "CREATE_NO_WINDOW", 0)
+        subprocess.Popen([exe, "serve"], stdout=subprocess.DEVNULL, stderr=subprocess.DEVNULL,
+                         creationflags=flags)
+        deadline = time.monotonic() + wait_s
+        while time.monotonic() < deadline and not ollama_up():
+            time.sleep(1)
+        if not ollama_up():
+            return "Ollama did not start. Open the Ollama app, then start Edith again."
+    try:
+        tags = httpx.get("http://localhost:11434/api/tags", timeout=5).json().get("models", [])
+    except Exception as e:
+        return f"Could not list Ollama models: {e}"
+    names = {m.get("name", "") for m in tags} | {m.get("name", "").removesuffix(":latest") for m in tags}
+    if model and model not in names:
+        return f"Model {model!r} is not downloaded. Run: ollama pull {model}"
+    return None
+
+
+def probe_llm(env: dict[str, str], timeout: float = 45.0) -> tuple[bool, str]:
+    """Send one tiny real chat request. Reachable-but-hanging models must not look healthy."""
+    base, model = env.get("LLM_BASE_URL", "").rstrip("/"), env.get("LLM_MODEL", "")
+    key = env.get("LLM_API_KEY", "")
+    t0 = time.monotonic()
+    try:
+        r = httpx.post(base + "/chat/completions", timeout=timeout,
+                       headers={"Authorization": f"Bearer {key}"},
+                       json={"model": model,
+                             "messages": [{"role": "user", "content": "Reply with the single word: ready"}]})
+    except httpx.TimeoutException:
+        return False, f"{model}: no answer within {timeout:.0f}s (model hangs - pick another LLM_MODEL)"
+    except Exception as e:
+        return False, f"{model}: cannot connect to {base} ({type(e).__name__})"
+    if r.status_code != 200:
+        detail = r.text[:140].replace("\n", " ")
+        if key:
+            detail = detail.replace(key, "<key>")
+        return False, f"{model}: HTTP {r.status_code} {detail}"
+    return True, f"{model} answered in {time.monotonic() - t0:.1f}s @ {base}"
 
 
 def cmd_start(_: argparse.Namespace | None = None) -> int:
@@ -246,6 +321,17 @@ def cmd_start(_: argparse.Namespace | None = None) -> int:
     if not env.get("BOT_TOKEN") or not env.get("ALLOWED_USER_IDS"):
         con.print("[red]Not configured yet.[/] Running setup first…")
         return cmd_setup()
+    if not acquire_single_instance():
+        con.print("[red]Edith is already running[/] in another window. Close that one first "
+                  "(two copies fight over Telegram messages).")
+        return 1
+    if env.get("LLM_PROVIDER") == "openai_compat" and is_local_ollama(env.get("LLM_BASE_URL", "")):
+        with con.status("Starting the local AI model (Ollama)…"):
+            problem = ensure_ollama(env.get("LLM_MODEL", ""))
+        if problem:
+            con.print(f"[yellow]![/] AI brain: {problem}\n  Instant voice commands and slash commands still work.")
+        else:
+            con.print(f"[green]✓[/] Local AI ready: {env.get('LLM_MODEL')}")
     con.print(Panel.fit(f"[bold green]{APP_NAME} is running[/]\nOpen your bot on your phone and send /help.\n"
                         "Press Ctrl+C or close this window to stop.", border_style="green"))
     from . import main as bot_main  # imported late: loads config from .env
@@ -275,15 +361,15 @@ def cmd_doctor(_: argparse.Namespace | None = None) -> int:
     if prov == "anthropic":
         _row(t, bool(env.get("ANTHROPIC_API_KEY")), "AI brain", f"Claude {env.get('CLAUDE_MODEL', '')}")
     elif prov == "openai_compat":
-        base = env.get("LLM_BASE_URL", "")
-        ok = None
-        try:
-            r = httpx.get(base.rstrip("/") + "/models", timeout=5,
-                          headers={"Authorization": f"Bearer {env.get('LLM_API_KEY', '')}"})
-            ok = r.status_code == 200
-        except Exception:
-            ok = False
-        _row(t, ok, "AI brain", f"{env.get('LLM_MODEL', '')} @ {base}")
+        problem = None
+        if is_local_ollama(env.get("LLM_BASE_URL", "")):
+            problem = ensure_ollama(env.get("LLM_MODEL", ""))
+        if problem:
+            _row(t, False, "AI brain", problem)
+        else:
+            with con.status("Asking the AI model a test question…"):
+                ok, detail = probe_llm(env)
+            _row(t, ok, "AI brain", detail)
     else:
         _row(t, None, "AI brain", "not configured (Edith voice mode off)")
 

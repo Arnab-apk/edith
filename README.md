@@ -13,11 +13,11 @@ Your PC does it, then answers you out loud.
 [![Windows 10/11](https://img.shields.io/badge/Windows-10%20%7C%2011-0078D6?logo=windows&logoColor=white)](#-install-in-60-seconds)
 [![Telegram Bot](https://img.shields.io/badge/Telegram-bot-26A5E4?logo=telegram&logoColor=white)](https://core.telegram.org/bots)
 [![python-telegram-bot 22](https://img.shields.io/badge/python--telegram--bot-22.x-26A5E4)](https://python-telegram-bot.org/)
-[![AI: Claude · Ollama · Gemini · Groq](https://img.shields.io/badge/AI-Claude%20·%20Ollama%20·%20Gemini%20·%20Groq-8A63D2)](#-pick-a-brain)
-[![Tests](https://img.shields.io/badge/tests-189%20passing-2EA44F)](#-development)
+[![AI: NVIDIA NIM](https://img.shields.io/badge/AI-NVIDIA%20NIM-76B900?logo=nvidia&logoColor=white)](#-one-key-everything-works)
+[![Tests](https://img.shields.io/badge/tests-486%20passing-2EA44F)](#-development)
 [![License: MIT](https://img.shields.io/badge/license-MIT-yellow.svg)](LICENSE)
 
-[Install](#-install-in-60-seconds) · [Features](#-what-it-can-do) · [Voice mode](#-edith-voice-mode) · [Commands](#-command-reference) · [Safety](#-security-model) · [FAQ](#-faq)
+[Install](#-install-in-60-seconds) · [Features](#-what-it-can-do) · [Voice mode](#-edith-voice-mode) · [One key](#-one-key-everything-works) · [Commands](#-command-reference) · [Safety](#-security-model) · [FAQ](#-faq)
 
 </div>
 
@@ -30,13 +30,13 @@ Your PC does it, then answers you out loud.
 <td width="33%" valign="top">
 
 ### 🎙 Talk, don't type
-Send a **voice note**. Edith transcribes it **locally** on your GPU, works out the steps, runs them and **replies with her own voice**.
+Send a **voice note**. Edith transcribes it with **Whisper large-v3**, works out the steps, runs them and **replies with her own voice**.
 
 </td>
 <td width="33%" valign="top">
 
-### 🧠 Bring any brain
-**Claude** for best quality, or go **100% free**: **Ollama** on your own PC, **Gemini** or **Groq**. Switch with one line.
+### 💬 Just say it or type it
+No slash commands needed: plain chat messages and voice notes both work. Common commands run **instantly**, with no AI call.
 
 </td>
 <td width="33%" valign="top">
@@ -103,7 +103,7 @@ cd edith
 | 📦 | Installs [uv](https://docs.astral.sh/uv/), then **Python 3.12** and every package into a local `.venv`. Nothing system-wide. |
 | 🤖 | Asks for your bot token: open **[@BotFather](https://t.me/BotFather)** → `/newbot` → paste the token. Checked live with Telegram. |
 | 📱 | Tells you to tap **START** on your new bot. Edith **detects your Telegram ID automatically** and locks the bot to you. |
-| 🧠 | Lets you pick the AI brain: Claude, Ollama (free, offline), Gemini or Groq, or skip it. |
+| 🧠 | Asks for one free **NVIDIA key** and tests it live. That key powers the AI brain and voice recognition. |
 | 🔒 | Writes `.env` and restricts it to your Windows account. Optionally adds a *visible* autostart entry. |
 
 **3.** Double-click **`start.bat`**, then on your phone send **`/help`**. That's it. 🎉
@@ -135,8 +135,10 @@ cd edith
 ```mermaid
 flowchart LR
     A["📱 Voice note<br/>(OGG/Opus)"] --> B["🎧 PyAV decode"]
-    B --> C["📝 faster-whisper<br/>CUDA fp16 · CPU int8 fallback"]
-    C --> D{"🧠 LLM tool loop<br/>Claude / Ollama / Gemini / Groq"}
+    B --> C["📝 Whisper large-v3 on NVIDIA<br/>local Whisper fallback"]
+    C --> I{"⚡ Instant command?"}
+    I -- "yes" --> E
+    I -- "no" --> D{"🧠 NVIDIA NIM tool loop"}
     D -- "safe action" --> E["⚙️ Action registry"]
     D -- "dangerous action" --> F["⚠️ Confirm button<br/>on your phone"]
     F -- "✅" --> E
@@ -146,20 +148,21 @@ flowchart LR
     G --> H["🔊 OGG/Opus voice reply"]
 ```
 
-- **Speech-to-text runs locally.** Your voice never leaves your PC for transcription.
+- **Speech-to-text** uses NVIDIA's hosted Whisper large-v3, with a local Whisper model as automatic fallback (set `STT_PROVIDER=local` to keep audio on your PC).
 - **Text-to-speech** uses Microsoft neural voices through `edge-tts` (default `en-GB-SoniaNeural`). Pick any voice with `control config set TTS_VOICE …`.
 - Edith **never claims an action she didn't run**, and every dangerous tool call stops and waits for your tap.
 
-## 🧠 Pick a brain
+## 🧠 One key, everything works
 
-| Provider | Cost | Privacy | Setup |
-|---|---|---|---|
-| **Claude** (Anthropic) | Paid per use | Cloud | `LLM_PROVIDER=anthropic` + `ANTHROPIC_API_KEY` |
-| **Ollama** | **Free** | **100% local** | Install [Ollama](https://ollama.com), `ollama pull qwen3:8b` (runs on a 6 GB GPU) |
-| **Google Gemini** | Free tier | Cloud | API key from [AI Studio](https://aistudio.google.com) |
-| **Groq** | Free tier | Cloud | API key from [console.groq.com](https://console.groq.com) |
+Edith uses a single free **NVIDIA** key (from [build.nvidia.com](https://build.nvidia.com)) for both halves of voice control:
 
-All four are configured in the wizard. Plain slash commands work with **no AI at all**.
+| Job | Model | Measured |
+|---|---|---|
+| **Listening** (speech-to-text) | `whisper-large-v3`, hosted by NVIDIA | about 1.3 s per voice note |
+| **Thinking** (picking actions) | `nvidia/nemotron-3.5-bolt-e4b` | under 1 s per tool call |
+| **Instant commands** | none: "lock my PC", "volume 30", "take a screenshot" and dozens more are matched on your PC | no AI call at all |
+
+If NVIDIA is unreachable, listening falls back to a local Whisper model automatically, and instant commands and slash commands keep working. The free NVIDIA tier is rate-limited, not unlimited. Advanced users can point `LLM_BASE_URL` / `LLM_MODEL` at any OpenAI-compatible server (for example local Ollama) with `control config set`.
 
 ## 📖 Command reference
 
@@ -252,7 +255,7 @@ Edith gives a phone full control of a PC, so security is built into the core, no
 - **Confirm before danger.** Shell, kill, delete, move, power, typing and mouse actions are flagged `dangerous` in the registry. The Telegram UI, the AI tool loop and automations all have to get a **✅ Confirm** tap (random one-time token, chat-bound, 120 s expiry) before they run.
 - **Prompt-injection aware.** Text the AI reads from your PC (files, window titles, command output) can't skip the Confirm step: the check sits in code, not in the prompt.
 - **No stealth, ever.** Edith runs in a visible window. Autostart is a normal Task Scheduler entry you turn on yourself (`control autostart on`, removable any time). There's no keylogging, no hiding from Task Manager, no AV evasion.
-- **Secrets stay local.** `.env` is git-ignored and readable only by your Windows account. Speech recognition runs on your machine.
+- **Secrets stay local.** `.env` is git-ignored and readable only by your Windows account.
 
 See [`REVIEW.md`](REVIEW.md) for the full security review.
 
@@ -318,7 +321,7 @@ async def battery() -> ActionResult:
 ## 🧪 Development
 
 ```powershell
-.venv\Scripts\python -m pytest -q          # 189 tests, no network, no real OS actions
+.venv\Scripts\python -m pytest -q          # 486 tests, no network, no real OS actions
 .venv\Scripts\python -m bot.cli doctor     # environment check
 ```
 
@@ -339,7 +342,7 @@ No. Only Telegram user IDs in <code>ALLOWED_USER_IDS</code> are served. Everyone
 </details>
 
 <details><summary><b>Is it really free?</b></summary>
-Yes, with Ollama (local), or with Gemini/Groq free tiers. Speech-to-text and text-to-speech are free either way. Claude is optional and paid per use.
+Yes on NVIDIA's free tier, which is rate-limited rather than unlimited. Instant commands and slash commands never use it.
 </details>
 
 <details><summary><b>How do I stop it?</b></summary>

@@ -20,3 +20,5 @@ pytest
 pytest-asyncio
 openai
 rich
+pywinauto
+nvidia-riva-client

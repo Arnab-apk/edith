@@ -9,3 +9,4 @@ uploads/
 .pytest_cache/
 # internal build log (local only)
 PLAN.md
+.vscode/
