@@ -1,0 +1,11 @@
+.env
+.env.bak
+.venv/
+__pycache__/
+*.pyc
+logs/
+data/
+uploads/
+.pytest_cache/
+# internal build log (local only)
+PLAN.md
