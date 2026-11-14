@@ -10,3 +10,6 @@ uploads/
 # internal build log (local only)
 PLAN.md
 .vscode/
+Edith.exe
+build/
+dist/

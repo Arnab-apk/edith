@@ -108,6 +108,8 @@ cd edith
 
 **3.** Double-click **`start.bat`**, then on your phone send **`/help`**. That's it. 🎉
 
+> 💡 Prefer one icon? Run `toolsuild_exe.bat` once to create **`Edith.exe`** in the folder. Double-click it: the first time it runs setup, after that it starts Edith. `Edith.exe doctor` / `Edith.exe setup` work too.
+
 <details>
 <summary><b>Git Bash / terminal users</b></summary>
 

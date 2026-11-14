@@ -43,15 +43,19 @@ if ($needVenv) {
 Ok "Python: $(& $Py --version)"
 
 if (-not $SkipDeps) {
-    Step 'Installing packages (first run downloads ~1 GB, takes a few minutes)'
-    & $uv pip sync requirements.txt --python $Py
+    # A running Edith keeps package files open, and Windows then refuses to update them.
+    $running = Get-CimInstance Win32_Process -Filter "Name = 'python.exe'" -ErrorAction SilentlyContinue |
+        Where-Object { $_.ExecutablePath -and $_.ExecutablePath.StartsWith($Root, [StringComparison]::OrdinalIgnoreCase) }
+    if ($running) {
+        Warn 'Edith is running from this folder. Close its window first, then run setup again.'
+        Warn '(Already installed? You do not need setup: just use start.bat.)'
+        exit 1
+    }
+    Step 'Installing packages (first run takes a few minutes)'
+    # "install", not "sync": never removes optional extras such as requirements-gpu.txt
+    & $uv pip install -r requirements.txt --python $Py
     if ($LASTEXITCODE -ne 0) { throw 'package install failed - see errors above' }
     Ok 'packages installed'
-    if (Get-Command nvidia-smi -ErrorAction SilentlyContinue) {
-        Step 'NVIDIA GPU found - installing CUDA libraries for fast speech-to-text (~1 GB)'
-        & $uv pip install -r requirements-gpu.txt --python $Py
-        if ($LASTEXITCODE -eq 0) { Ok 'GPU speech-to-text enabled' } else { Warn 'GPU libraries failed - voice will use the CPU (slower, still works)' }
-    }
 }
 
 Step 'Opening the setup wizard'
