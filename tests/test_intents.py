@@ -238,7 +238,8 @@ NEGATIVE = [
     "take a photo", "take a selfie", "show me the camera",
     # vague / reasoning / payload ambiguity
     "say something", "say something funny", "say hi to mom", "say that again", "speak up",
-    "say hello and lock the pc", "open notepad", "open my documents", "open report.pdf", "open spotify",
+    "say hello and lock the pc", "open my documents", "open report.pdf", "go to sleep now",
+    "open brave then youtube", "visit spotify",
     "play despacito", "play some music", "volume 150", "set the volume to 200", "turn it up",
     "record the screen for 5 minutes", "remind me in 10 minutes", "remind me at 9 to call mom",
     "remind me to call mom", "search for my files", "open youtube and search cats", "mute and do my homework",
@@ -318,3 +319,12 @@ def test_pure_module_has_no_telegram_or_bot_imports():
     names = {a.name for n in ast.walk(tree) if isinstance(n, ast.Import) for a in n.names}
     names |= {n.module or "" for n in ast.walk(tree) if isinstance(n, ast.ImportFrom)}
     assert not any(x.startswith(("telegram", "bot")) or x == "" for x in names), names
+
+
+@pytest.mark.parametrize("phrase,app", [
+    ("open notepad", "notepad"), ("open spotify", "spotify"), ("open brave", "brave"),
+    ("launch vs code", "vs code"), ("hey edith please open whatsapp", "whatsapp"),
+])
+def test_open_installed_app(phrase, app):
+    got = match(phrase)
+    assert got is not None and [(i.action, i.args) for i in got] == [("open_app", {"name": app})]

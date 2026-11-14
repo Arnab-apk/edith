@@ -64,7 +64,11 @@ async def post_init(app: Application) -> None:
 def build_app() -> Application:
     # concurrent_updates: confirm buttons are awaited inside handlers (see bot/confirm.py)
     app = (Application.builder().token(settings.bot_token).post_init(post_init)
-           .concurrent_updates(True).build())
+           .concurrent_updates(True)
+           .connect_timeout(20).read_timeout(60).write_timeout(120).pool_timeout(30)
+           .media_write_timeout(180)
+           .get_updates_connect_timeout(20).get_updates_read_timeout(60)
+           .build())
     load_all()  # register every action before modules/Edith read the registry
     ALL_COMMANDS[:] = BASE_COMMANDS  # fresh list: calling build_app() twice must not duplicate /help
     app.add_handler(CommandHandler(["start", "help"], cmd_help))

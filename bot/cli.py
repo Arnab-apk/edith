@@ -34,17 +34,17 @@ TASK_NAME = APP_NAME
 ROOT = Path(__file__).resolve().parent.parent
 ENV_FILE = ROOT / ".env"
 TG_API = "https://api.telegram.org/bot{token}/{method}"
-SECRET_KEYS = {"BOT_TOKEN", "ANTHROPIC_API_KEY", "LLM_API_KEY"}
+SECRET_KEYS = {"BOT_TOKEN", "GROQ_API_KEY", "NVIDIA_API_KEY", "ANTHROPIC_API_KEY", "LLM_API_KEY"}
 KNOWN_KEYS = ["BOT_TOKEN", "ALLOWED_USER_IDS", "SHELL_TIMEOUT", "UPLOAD_DIR", "LLM_PROVIDER",
               "ANTHROPIC_API_KEY", "CLAUDE_MODEL", "LLM_BASE_URL", "LLM_API_KEY", "LLM_MODEL",
               "WHISPER_MODEL", "TTS_VOICE"]
 
 # provider presets: key -> (label, LLM_PROVIDER, base_url, default model, key needed?)
-# One setup for everyone: NVIDIA NIM (free key from build.nvidia.com) powers both the AI brain
-# and speech-to-text (hosted whisper-large-v3). Advanced users can still point LLM_* elsewhere
+# One setup for everyone: Groq (free key from console.groq.com) powers both the AI brain and
+# speech-to-text (hosted whisper-large-v3). Advanced users can still point LLM_* elsewhere
 # with `control config set`.
-NVIDIA_BASE_URL = "https://integrate.api.nvidia.com/v1"
-NVIDIA_MODEL = "nvidia/nemotron-3.5-bolt-e4b"  # measured: correct tool calls in under 1 s
+GROQ_BASE_URL = "https://api.groq.com/openai/v1"
+GROQ_MODEL = "openai/gpt-oss-120b"  # measured: correct tool calls on every test request, ~1-4 s
 
 for _stream in (sys.stdout, sys.stderr):  # Windows consoles default to cp1252: ✓/… would crash
     try:
@@ -186,22 +186,22 @@ def cmd_setup(_: argparse.Namespace | None = None) -> int:
         ids = ",".join([str(owner)] + [x for x in re.split(r"[,\s]+", extra) if x.isdigit()])
         con.print(f"  [green]✓[/] allowed: {ids}")
 
-    # 3. AI brain + speech: one NVIDIA key does both
-    con.print("\n[bold]3. NVIDIA key[/] (free: powers Edith's AI brain and voice recognition)\n"
-              "  Open [bold]https://build.nvidia.com[/], sign in, click your profile -> [bold]API Keys[/] -> "
-              "Generate. It starts with nvapi-")
+    # 3. AI brain + speech: one Groq key does both
+    con.print("\n[bold]3. Groq key[/] (free: powers Edith's AI brain and voice recognition)\n"
+              "  Open [bold]https://console.groq.com/keys[/], sign in, click [bold]Create API Key[/]. "
+              "It starts with gsk_")
     upd = {"BOT_TOKEN": token, "ALLOWED_USER_IDS": ids}
-    key = env.get("LLM_API_KEY", "")
-    if not (key.startswith("nvapi-") and Confirm.ask("Keep the NVIDIA key already saved?", default=True)):
+    key = env.get("GROQ_API_KEY", "") or env.get("LLM_API_KEY", "")
+    if not (key.startswith("gsk_") and Confirm.ask("Keep the Groq key already saved?", default=True)):
         key = ""
     while True:
         if not key:
-            key = getpass.getpass("  Paste the NVIDIA key (hidden, Enter to skip): ").strip()
+            key = getpass.getpass("  Paste the Groq key (hidden, Enter to skip): ").strip()
         if not key:
             con.print("  [yellow]Skipped[/] - instant commands and slash commands work; "
                       "add the key later with: control setup")
             break
-        probe_env = {"LLM_BASE_URL": NVIDIA_BASE_URL, "LLM_MODEL": NVIDIA_MODEL, "LLM_API_KEY": key}
+        probe_env = {"LLM_BASE_URL": GROQ_BASE_URL, "LLM_MODEL": GROQ_MODEL, "LLM_API_KEY": key}
         with con.status("Testing the key with a real question…"):
             ok, detail = probe_llm(probe_env, timeout=40)
         if ok:
@@ -210,8 +210,8 @@ def cmd_setup(_: argparse.Namespace | None = None) -> int:
         con.print(f"  [red]That did not work:[/] {detail}")
         key = ""
     if key:
-        upd |= {"LLM_PROVIDER": "openai_compat", "LLM_BASE_URL": NVIDIA_BASE_URL,
-                "LLM_API_KEY": key, "LLM_MODEL": NVIDIA_MODEL}
+        upd |= {"LLM_PROVIDER": "openai_compat", "LLM_BASE_URL": GROQ_BASE_URL, "GROQ_API_KEY": key,
+                "LLM_API_KEY": key, "LLM_MODEL": GROQ_MODEL, "STT_PROVIDER": "groq"}
 
     # sensible defaults, no questions (change later with: control config set KEY VALUE)
     upd["TTS_VOICE"] = env.get("TTS_VOICE") or "en-GB-SoniaNeural"

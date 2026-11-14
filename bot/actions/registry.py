@@ -94,7 +94,7 @@ REGISTRY: dict[str, Action] = {}
 _EVER: dict[str, Action] = {}  # every real action ever registered (survives REGISTRY.clear())
 
 # Modules under bot/actions/ that load_all() imports. Missing ones are skipped with a warning.
-ACTION_MODULES = ["system", "power", "shell", "files", "desktop", "media", "automation"]
+ACTION_MODULES = ["system", "power", "shell", "files", "desktop", "media", "apps", "automation"]
 
 _NAME_RE = re.compile(r"^[a-z][a-z0-9_]{0,63}$")
 

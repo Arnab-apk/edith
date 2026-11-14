@@ -13,8 +13,8 @@ Your PC does it, then answers you out loud.
 [![Windows 10/11](https://img.shields.io/badge/Windows-10%20%7C%2011-0078D6?logo=windows&logoColor=white)](#-install-in-60-seconds)
 [![Telegram Bot](https://img.shields.io/badge/Telegram-bot-26A5E4?logo=telegram&logoColor=white)](https://core.telegram.org/bots)
 [![python-telegram-bot 22](https://img.shields.io/badge/python--telegram--bot-22.x-26A5E4)](https://python-telegram-bot.org/)
-[![AI: NVIDIA NIM](https://img.shields.io/badge/AI-NVIDIA%20NIM-76B900?logo=nvidia&logoColor=white)](#-one-key-everything-works)
-[![Tests](https://img.shields.io/badge/tests-486%20passing-2EA44F)](#-development)
+[![AI: Groq](https://img.shields.io/badge/AI-Groq-F55036)](#-one-key-everything-works)
+[![Tests](https://img.shields.io/badge/tests-512%20passing-2EA44F)](#-development)
 [![License: MIT](https://img.shields.io/badge/license-MIT-yellow.svg)](LICENSE)
 
 [Install](#-install-in-60-seconds) · [Features](#-what-it-can-do) · [Voice mode](#-edith-voice-mode) · [One key](#-one-key-everything-works) · [Commands](#-command-reference) · [Safety](#-security-model) · [FAQ](#-faq)
@@ -49,7 +49,7 @@ Only **your** Telegram account can use it, and strangers get silence. Anything d
 <tr>
 <td valign="top">
 
-### ⚡ 50 actions, one registry
+### ⚡ 52 actions, one registry
 Every feature is a typed action. Slash commands, buttons, the AI and automations all call the **same** code.
 
 </td>
@@ -103,7 +103,7 @@ cd edith
 | 📦 | Installs [uv](https://docs.astral.sh/uv/), then **Python 3.12** and every package into a local `.venv`. Nothing system-wide. |
 | 🤖 | Asks for your bot token: open **[@BotFather](https://t.me/BotFather)** → `/newbot` → paste the token. Checked live with Telegram. |
 | 📱 | Tells you to tap **START** on your new bot. Edith **detects your Telegram ID automatically** and locks the bot to you. |
-| 🧠 | Asks for one free **NVIDIA key** and tests it live. That key powers the AI brain and voice recognition. |
+| 🧠 | Asks for one free **Groq key** and tests it live. That key powers the AI brain and voice recognition. |
 | 🔒 | Writes `.env` and restricts it to your Windows account. Optionally adds a *visible* autostart entry. |
 
 **3.** Double-click **`start.bat`**, then on your phone send **`/help`**. That's it. 🎉
@@ -137,10 +137,10 @@ cd edith
 ```mermaid
 flowchart LR
     A["📱 Voice note<br/>(OGG/Opus)"] --> B["🎧 PyAV decode"]
-    B --> C["📝 Whisper large-v3 on NVIDIA<br/>local Whisper fallback"]
+    B --> C["📝 Whisper large-v3 on Groq<br/>local Whisper fallback"]
     C --> I{"⚡ Instant command?"}
     I -- "yes" --> E
-    I -- "no" --> D{"🧠 NVIDIA NIM tool loop"}
+    I -- "no" --> D{"🧠 Groq tool loop<br/>gpt-oss-120b"}
     D -- "safe action" --> E["⚙️ Action registry"]
     D -- "dangerous action" --> F["⚠️ Confirm button<br/>on your phone"]
     F -- "✅" --> E
@@ -150,21 +150,21 @@ flowchart LR
     G --> H["🔊 OGG/Opus voice reply"]
 ```
 
-- **Speech-to-text** uses NVIDIA's hosted Whisper large-v3, with a local Whisper model as automatic fallback (set `STT_PROVIDER=local` to keep audio on your PC).
+- **Speech-to-text** uses Groq's hosted Whisper large-v3, with a local Whisper model as automatic fallback (set `STT_PROVIDER=local` to keep audio on your PC).
 - **Text-to-speech** uses Microsoft neural voices through `edge-tts` (default `en-GB-SoniaNeural`). Pick any voice with `control config set TTS_VOICE …`.
 - Edith **never claims an action she didn't run**, and every dangerous tool call stops and waits for your tap.
 
 ## 🧠 One key, everything works
 
-Edith uses a single free **NVIDIA** key (from [build.nvidia.com](https://build.nvidia.com)) for both halves of voice control:
+Edith uses a single free **Groq** key (from [console.groq.com](https://console.groq.com/keys)) for both halves of voice control:
 
 | Job | Model | Measured |
 |---|---|---|
-| **Listening** (speech-to-text) | `whisper-large-v3`, hosted by NVIDIA | about 1.3 s per voice note |
-| **Thinking** (picking actions) | `nvidia/nemotron-3.5-bolt-e4b` | under 1 s per tool call |
-| **Instant commands** | none: "lock my PC", "volume 30", "take a screenshot" and dozens more are matched on your PC | no AI call at all |
+| **Listening** (speech-to-text) | `whisper-large-v3` on Groq | about 0.7 s per voice note |
+| **Thinking** (picking actions) | `openai/gpt-oss-120b` on Groq, backup `qwen/qwen3.8-27b` | about 1–4 s per request |
+| **Instant commands** | none: "lock my PC", "open brave", "volume 30", "take a screenshot"… are matched on your PC | no AI call at all |
 
-If NVIDIA is unreachable, listening falls back to a local Whisper model automatically, and instant commands and slash commands keep working. The free NVIDIA tier is rate-limited, not unlimited. Advanced users can point `LLM_BASE_URL` / `LLM_MODEL` at any OpenAI-compatible server (for example local Ollama) with `control config set`.
+Groq's free tier is rate-limited (about 8,000 tokens per minute for the main model), so Edith sends only the ~10 tools relevant to each request. If Groq is busy it retries once on the backup model, and listening falls back to a local Whisper model. Advanced users can point `LLM_BASE_URL` / `LLM_MODEL` at any OpenAI-compatible server with `control config set`.
 
 ## 📖 Command reference
 
@@ -323,7 +323,7 @@ async def battery() -> ActionResult:
 ## 🧪 Development
 
 ```powershell
-.venv\Scripts\python -m pytest -q          # 486 tests, no network, no real OS actions
+.venv\Scripts\python -m pytest -q          # 512 tests, no network, no real OS actions
 .venv\Scripts\python -m bot.cli doctor     # environment check
 ```
 
@@ -344,7 +344,7 @@ No. Only Telegram user IDs in <code>ALLOWED_USER_IDS</code> are served. Everyone
 </details>
 
 <details><summary><b>Is it really free?</b></summary>
-Yes on NVIDIA's free tier, which is rate-limited rather than unlimited. Instant commands and slash commands never use it.
+Yes on Groq's free tier, which is rate-limited rather than unlimited. Instant commands and slash commands never use it.
 </details>
 
 <details><summary><b>How do I stop it?</b></summary>

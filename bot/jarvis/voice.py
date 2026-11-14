@@ -243,13 +243,48 @@ def _nvidia_key() -> str:
     return ""
 
 
+def _groq_key() -> str:
+    for name in ("GROQ_API_KEY", "LLM_API_KEY"):
+        v = os.getenv(name, "").strip()
+        if v.startswith("gsk_"):
+            return v
+    return ""
+
+
 def stt_provider() -> str:
-    """"nvidia" (hosted whisper-large-v3, needs an nvapi- key) or "local" (faster-whisper).
-    STT_PROVIDER=auto (default) uses nvidia whenever an nvapi- key is configured."""
+    """"groq" or "nvidia" (hosted whisper-large-v3) or "local" (faster-whisper).
+    STT_PROVIDER=auto (default) picks groq, then nvidia, by which key is configured."""
     pref = os.getenv("STT_PROVIDER", "auto").strip().lower() or "auto"
-    if pref == "local":
-        return "local"
+    if pref in ("local", "groq", "nvidia"):
+        if pref == "groq" and not _groq_key() or pref == "nvidia" and not _nvidia_key():
+            return "local"
+        return pref
+    if _groq_key():
+        return "groq"
     return "nvidia" if _nvidia_key() else "local"
+
+
+GROQ_STT_URL = "https://api.groq.com/openai/v1/audio/transcriptions"
+GROQ_STT_PROMPT = "Edith, open, close, lock, screenshot, volume, mute, record, Brave, Chrome, WhatsApp."
+
+
+def _transcribe_groq_sync(data: bytes) -> str:
+    import httpx
+
+    pcm = decode_audio(data)
+    if pcm.size < SAMPLE_RATE // 5:
+        return ""
+    form = {"model": os.getenv("GROQ_STT_MODEL", "").strip() or "whisper-large-v3",
+            "response_format": "json", "temperature": "0", "prompt": GROQ_STT_PROMPT}
+    lang = language()
+    if lang:
+        form["language"] = lang
+    r = httpx.post(GROQ_STT_URL, headers={"Authorization": "Bearer " + _groq_key()}, data=form,
+                   files={"file": ("voice.wav", _wav_bytes(pcm), "audio/wav")}, timeout=30)
+    if r.status_code != 200:
+        raise RuntimeError(f"Groq speech-to-text HTTP {r.status_code}")
+    text = (r.json().get("text") or "").strip()
+    return "" if _is_prompt_echo(text, GROQ_STT_PROMPT) else text
 
 
 def _wav_bytes(pcm: np.ndarray) -> bytes:
@@ -284,11 +319,13 @@ async def transcribe(data: bytes) -> str:
     Hosted NVIDIA Whisper first when configured; the local model is the automatic fallback."""
     global _last_engine
     data = bytes(data)
-    if stt_provider() == "nvidia":
+    engine = stt_provider()
+    if engine in ("groq", "nvidia"):
         try:
             import asyncio
-            text = await asyncio.wait_for(run_blocking(_transcribe_nvidia_sync, data), timeout=25)
-            _last_engine = "whisper-large-v3 on NVIDIA"
+            fn = _transcribe_groq_sync if engine == "groq" else _transcribe_nvidia_sync
+            text = await asyncio.wait_for(run_blocking(fn, data), timeout=35)
+            _last_engine = f"whisper-large-v3 on {engine.capitalize() if engine == 'groq' else 'NVIDIA'}"
             return text
         except VoiceError:
             raise
@@ -301,8 +338,8 @@ async def transcribe(data: bytes) -> str:
 
 def warmup() -> str:
     """Load the model (downloading it on first run) and run one tiny inference. Blocking."""
-    if stt_provider() == "nvidia":
-        return "whisper-large-v3 on NVIDIA (hosted, nothing to load)"
+    if stt_provider() != "local":
+        return f"whisper-large-v3 on {'Groq' if stt_provider() == 'groq' else 'NVIDIA'} (hosted, nothing to load)"
     model = _load_model()
     segs, _ = model.transcribe(np.zeros(SAMPLE_RATE, dtype=np.float32), beam_size=1,
                                language=language() or "en", without_timestamps=True)
@@ -312,8 +349,9 @@ def warmup() -> str:
 
 def model_info() -> str:
 
-    if stt_provider() == "nvidia":
-        return "whisper-large-v3 on NVIDIA (hosted); local fallback: " + (_model_desc or "not loaded")
+    if stt_provider() != "local":
+        host = "Groq" if stt_provider() == "groq" else "NVIDIA"
+        return f"whisper-large-v3 on {host} (hosted); local fallback: " + (_model_desc or "not loaded")
     return _model_desc or "loading…"
 
 

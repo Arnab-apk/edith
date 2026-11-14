@@ -655,7 +655,7 @@ async def test_local_requests_are_compact_with_keep_alive(monkeypatch):
             assert "chat_id" not in t["function"]["parameters"]["properties"]  # S-6 still holds
 
         remote = FakeOpenAI([omsg(content="ok")])
-        rb = _openai_brain(remote, monkeypatch, base="https://api.groq.com/openai/v1")
+        rb = _openai_brain(remote, monkeypatch, base="https://api.example-llm.com/v1")
         assert not rb.compact
         await rb.ask(FakeBot(), 1, "What is my CPU usage?")
         assert len(remote.requests[0]["tools"]) == len(r.REGISTRY) and "extra_body" not in remote.requests[0]
@@ -1085,3 +1085,10 @@ def test_text_calls_after_prose_and_with_quote_tokens():
     finally:
         r.REGISTRY.clear()
         r.REGISTRY.update(saved)
+
+
+def test_token_limited_clouds_get_compact_tools(monkeypatch):
+    # Groq's free tier allows ~8k tokens/minute: the full 52-tool list (~3.7k tokens) hit 429 on turn 2
+    for base in ("https://api.groq.com/openai/v1", "https://integrate.api.nvidia.com/v1"):
+        assert brain._is_token_limited(base)
+    assert not brain._is_token_limited("https://api.example-llm.com/v1")

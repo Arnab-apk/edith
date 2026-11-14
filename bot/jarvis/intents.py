@@ -578,7 +578,15 @@ def _open(c: str) -> Intent | None:
         return None
     url = _site_url(m["site"])
     if url is None:
-        return None  # "open notepad", "open my files" ... -> LLM (it may run a program)
+        app = m["site"].strip()
+        # Only app verbs ("open/launch/start/run brave"); "go to sleep" or "visit x" are never apps.
+        # A plain app name ("brave", "vs code"): open_app itself checks the app is installed.
+        if re.match(r"\s*(?:open(?: up)?|launch|start|run)\s", c, re.I) \
+                and re.fullmatch(r"[A-Za-z][A-Za-z0-9+ ]{1,30}", app) and len(app.split()) <= 3 \
+                and not re.search(r"\b(my|the|a|an|this|that|it|and|then|after|also|file|files|folder|"
+                                  r"document|documents|downloads|desktop|pictures|sleep|bed)\b", app, re.I):
+            return Intent("open_app", {"name": app}, f"Opening {app}.")
+        return None  # "open my files", "open report.pdf" ... -> LLM
     name = m["site"].strip()
     return Intent("open_url", {"url": url}, f"Opening {name if name.lower() in _SITES else url.split('://', 1)[1]}.")
 

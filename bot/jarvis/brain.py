@@ -205,6 +205,10 @@ def model_tools() -> list[dict[str, Any]]:
 # ====================================================================== compact tools for small models
 # Spoken words -> tools. Matched on word stems (first 5 letters), so "processes" hits "process".
 TOOL_KEYWORDS: dict[str, tuple[str, ...]] = {
+    "open_app": ("open", "launch", "start", "run", "app", "application", "program", "brave", "chrome",
+                 "edge", "firefox", "notepad", "spotify", "whatsapp", "discord", "steam", "vscode", "code",
+                 "word", "excel", "powerpoint", "telegram", "settings", "explorer", "calculator", "vlc"),
+    "list_apps": ("installed", "apps", "applications", "programs", "software"),
     "system_status": ("cpu", "ram", "memory", "battery", "disk", "storage", "temperature", "temp", "hot",
                       "ip", "uptime", "health", "status", "usage", "space", "charge", "specs"),
     "procs": ("process", "processes", "task", "using", "hogging", "eating", "top", "heavy", "running", "apps"),
@@ -623,7 +627,8 @@ class OpenAICompatBrain:
         self.timeout = llm_timeout()
         self.local = _is_local(self.base_url)
         mode = (tool_mode or os.getenv("EDITH_TOOL_MODE", "auto")).strip().lower()
-        self.compact = mode == "compact" or (mode not in ("full",) and self.local)
+        # free cloud tiers limit tokens per minute (Groq: 8k TPM), so send only the relevant tools there too
+        self.compact = mode == "compact" or (mode not in ("full",) and (self.local or _is_token_limited(self.base_url)))
         self.max_tools = int(_env_float("EDITH_MAX_TOOLS", 10))
         self.keep_alive = os.getenv("EDITH_KEEP_ALIVE", "30m").strip() or "30m"
         self._client = client
@@ -799,7 +804,12 @@ class OpenAICompatBrain:
         return _fail(reply, _step_limit_text(reply))
 
 
+def _is_token_limited(base_url: str) -> bool:
+    return any(h in (base_url or "") for h in ("api.groq.com", "integrate.api.nvidia.com"))
+
+
 NVIDIA_FALLBACK_MODEL = "nvidia/nemotron-3.5-lightning-30b-a3b"  # measured working on the free tier
+GROQ_FALLBACK_MODEL = "qwen/qwen3.8-27b"  # measured: correct tool calls in about 0.3 s
 
 
 def fallback_model(base_url: str, current: str) -> str:
@@ -808,7 +818,9 @@ def fallback_model(base_url: str, current: str) -> str:
     env = os.getenv("LLM_FALLBACK_MODEL", "").strip()
     if env.lower() in ("off", "none", "0"):
         return ""
-    backup = env or (NVIDIA_FALLBACK_MODEL if "integrate.api.nvidia.com" in (base_url or "") else "")
+    base_url = base_url or ""
+    backup = env or (GROQ_FALLBACK_MODEL if "api.groq.com" in base_url
+                     else NVIDIA_FALLBACK_MODEL if "integrate.api.nvidia.com" in base_url else "")
     return "" if backup == current else backup
 
 
