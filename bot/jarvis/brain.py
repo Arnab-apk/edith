@@ -750,8 +750,18 @@ class OpenAICompatBrain:
                 kw["extra_body"] = extra
             t0 = time.monotonic()
             try:
-                resp = await asyncio.wait_for(client.chat.completions.create(**kw),
-                                              self.timeout * 2 + min(10.0, self.timeout))  # backstop: SDK timeout+retry
+                try:
+                    resp = await asyncio.wait_for(client.chat.completions.create(**kw),
+                                                  self.timeout * 2 + min(10.0, self.timeout))  # backstop
+                except (openai.APIError, asyncio.TimeoutError) as e:
+                    backup = fallback_model(self.base_url, kw["model"])
+                    if not (backup and _is_retryable(e)):
+                        raise
+                    log.warning("%s failed (%s) - retrying on %s", kw["model"], type(e).__name__, backup)
+                    await _report(progress, "Main model busy - trying the backup…")
+                    kw["model"] = backup
+                    resp = await asyncio.wait_for(client.chat.completions.create(**kw),
+                                                  self.timeout * 2 + min(10.0, self.timeout))
             except (openai.APIError, asyncio.TimeoutError) as e:
                 return _fail(reply, self._error_text(e))
             finally:
@@ -779,7 +789,8 @@ class OpenAICompatBrain:
                     out, err = await execute_tool(bot, chat_id, name, args, reply, progress)
                     results.append(f"{name}: {'ERROR: ' if err else ''}{out}")
                 messages.append({"role": "user", "content": "Tool results:\n" + "\n".join(results)
-                                 + "\nNow answer the owner in one or two short sentences."})
+                                 + "\nIf the request needs another step, call the next tool now; "
+                                 "otherwise answer the owner in one or two short sentences."})
                 continue
             said = strip_think(content)
             reply.text = said or ("Done." if reply.actions else "Sorry, I didn't get an answer. Please try again.")
@@ -788,16 +799,78 @@ class OpenAICompatBrain:
         return _fail(reply, _step_limit_text(reply))
 
 
+NVIDIA_FALLBACK_MODEL = "nvidia/nemotron-3.5-lightning-30b-a3b"  # measured working on the free tier
+
+
+def fallback_model(base_url: str, current: str) -> str:
+    """Backup model for rate limits / timeouts / outages. LLM_FALLBACK_MODEL overrides; "off" disables.
+    Defaults to a second NVIDIA model when the brain runs on NVIDIA."""
+    env = os.getenv("LLM_FALLBACK_MODEL", "").strip()
+    if env.lower() in ("off", "none", "0"):
+        return ""
+    backup = env or (NVIDIA_FALLBACK_MODEL if "integrate.api.nvidia.com" in (base_url or "") else "")
+    return "" if backup == current else backup
+
+
+def _is_retryable(e: BaseException) -> bool:
+    import openai
+
+    if isinstance(e, (asyncio.TimeoutError, openai.APITimeoutError, openai.APIConnectionError,
+                      openai.RateLimitError, openai.InternalServerError, openai.NotFoundError)):
+        return True
+    return isinstance(e, openai.APIStatusError) and getattr(e, "status_code", 0) in (408, 429, 500, 502, 503, 504)
+
+
+# A bare call written as the whole reply: "system_status{}", "procs()", "volume {"level": 30}".
+_BARE_CALL = re.compile(r"^\s*`*\s*([a-z][a-z0-9_]{1,63})\s*(\{.*\}|\(\s*\))?\s*`*\s*$", re.S)
+
+
 def _parse_text_tool_calls(content: str) -> list[tuple[str, Any]]:
+    body = strip_think(content) if "</think>" in content else content
     out = []
-    for m in _TEXT_TOOL_CALL.finditer(strip_think(content) if "</think>" in content else content):
+    for m in _TEXT_TOOL_CALL.finditer(body):
         try:
             d = json.loads(m.group(1))
         except ValueError:
             continue
         if isinstance(d, dict) and d.get("name"):
             out.append((str(d["name"]), d.get("arguments", d.get("parameters", {}))))
+    if out:
+        return out
+    from ..actions.registry import REGISTRY
+
+    lines = [ln for ln in body.strip().splitlines() if ln.strip()]
+    # Calls may follow a sentence ("Battery is fine. Now checking processes.\nprocs{...}"):
+    # take the trailing run of call-shaped lines, all of which must name real actions.
+    tail: list[str] = []
+    for line in reversed(lines[-4:]):
+        m = _BARE_CALL.match(line)
+        if not m or m.group(1) not in REGISTRY:  # only real action names: never run arbitrary words
+            break
+        tail.insert(0, line)
+    if not tail or (len(tail) < len(lines) and not re.search(r"[{(]", tail[0])):
+        return []  # a lone trailing word after prose ("...status") is not a call
+    for line in tail:
+        m = _BARE_CALL.match(line)
+        args = _lenient_args(m.group(2) or "{}")
+        if args is None:
+            return []
+        out.append((m.group(1), args))
     return out
+
+
+def _lenient_args(raw: str) -> dict[str, Any] | None:
+    """JSON-ish arguments from a text call: {}, (), {"a": 1}, {a:1,b:<|"|>x<|"|>} (special quote tokens)."""
+    raw = raw.strip()
+    if raw.startswith("("):
+        return {} if re.fullmatch(r"\(\s*\)", raw) else None
+    raw = re.sub(r"<\|?\s*[\"']\s*\|?>", '"', raw)              # <|"|> style quote tokens
+    raw = re.sub(r'([{,]\s*)([A-Za-z_][A-Za-z0-9_]*)\s*:', r'\1"\2":', raw)  # bare keys
+    try:
+        args = json.loads(raw)
+    except ValueError:
+        return None
+    return args if isinstance(args, dict) else None
 
 
 def _fail(reply: BrainReply, text: str) -> BrainReply:

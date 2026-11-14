@@ -40,7 +40,7 @@ log = logging.getLogger("jarvis.voice")
 
 SAMPLE_RATE = 16000          # Whisper input rate
 OPUS_RATE = 48000            # Telegram voice notes: OGG/Opus 48 kHz mono
-MAX_TTS_CHARS = 500          # spoken answers stay short; the full text is always sent too
+MAX_TTS_CHARS = 220          # spoken answers stay short; the full text is always sent too
 MAX_AUDIO_SECONDS = 10 * 60  # refuse to transcribe absurdly long audio
 DEFAULT_PROMPT = ("Edith, screenshot, CPU, RAM, battery, processes, volume, mute, lock, "
                   "shut down, restart, open Chrome, YouTube, remind me.")

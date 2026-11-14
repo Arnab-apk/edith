@@ -1023,3 +1023,65 @@ async def test_nvidia_stt_used_and_falls_back_to_local(monkeypatch):
         raise ConnectionError("nvapi-test must never be shown")
     monkeypatch.setattr(voice, "_transcribe_nvidia_sync", boom)
     assert await voice.transcribe(b"x") == "local text"
+
+
+# ---------------------------------------------------------------- backup model on rate limits / timeouts
+def test_fallback_model_selection(monkeypatch):
+    monkeypatch.delenv("LLM_FALLBACK_MODEL", raising=False)
+    nv = "https://integrate.api.nvidia.com/v1"
+    assert brain.fallback_model(nv, "nvidia/nemotron-3.5-bolt-e4b") == brain.NVIDIA_FALLBACK_MODEL
+    assert brain.fallback_model(nv, brain.NVIDIA_FALLBACK_MODEL) == ""        # never "fall back" to itself
+    assert brain.fallback_model("http://localhost:11434/v1", "qwen3:4b") == ""
+    monkeypatch.setenv("LLM_FALLBACK_MODEL", "off")
+    assert brain.fallback_model(nv, "x") == ""
+    monkeypatch.setenv("LLM_FALLBACK_MODEL", "my/backup")
+    assert brain.fallback_model("http://other/v1", "x") == "my/backup"
+
+
+def test_retryable_errors():
+    import httpx
+    import openai
+
+    req = httpx.Request("POST", "http://x/v1/chat/completions")
+    rate = openai.RateLimitError("slow down", response=httpx.Response(429, request=req), body=None)
+    auth = openai.AuthenticationError("bad key", response=httpx.Response(401, request=req), body=None)
+    assert brain._is_retryable(rate)
+    assert brain._is_retryable(asyncio.TimeoutError())
+    assert not brain._is_retryable(auth)          # a wrong key must not be retried on another model
+
+
+def test_bare_text_tool_calls_are_parsed_but_only_for_real_actions():
+    from bot.actions.registry import load_all
+
+    saved = dict(r.REGISTRY)
+    load_all()
+    try:
+        assert brain._parse_text_tool_calls("system_status{}") == [("system_status", {})]
+        assert brain._parse_text_tool_calls("procs()") == [("procs", {})]
+        assert brain._parse_text_tool_calls('volume {"level": 30}') == [("volume", {"level": 30})]
+        assert brain._parse_text_tool_calls("gpu_status{}\nsystem_status{}") == [("gpu_status", {}), ("system_status", {})]
+        assert brain._parse_text_tool_calls("hello") == []                 # plain word, not an action
+        assert brain._parse_text_tool_calls("format_disk{}") == []         # unknown name never runs
+        assert brain._parse_text_tool_calls("Your CPU is at 20%.") == []
+    finally:
+        r.REGISTRY.clear()
+        r.REGISTRY.update(saved)
+
+
+def test_text_calls_after_prose_and_with_quote_tokens():
+    from bot.actions.registry import load_all
+
+    saved = dict(r.REGISTRY)
+    load_all()
+    try:
+        got = brain._parse_text_tool_calls(
+            'Your battery is at 95 percent. Now I will check the processes.\nprocs{limit:3,sort:<|"|>mem<|"|>}')
+        assert got == [("procs", {"limit": 3, "sort": "mem"})]
+        assert brain._parse_text_tool_calls("Everything looks fine with system_status") == []
+        assert brain._parse_text_tool_calls("I checked.\nsystem_status") == []   # bare word after prose
+        assert brain._parse_text_tool_calls("Done.\nformat_disk{}") == []         # unknown action
+        assert brain._lenient_args("{a:1,b:<|\"|>x<|\"|>}") == {"a": 1, "b": "x"}
+        assert brain._lenient_args("(oops)") is None
+    finally:
+        r.REGISTRY.clear()
+        r.REGISTRY.update(saved)
