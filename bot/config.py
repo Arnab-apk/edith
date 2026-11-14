@@ -32,7 +32,7 @@ def _load() -> Settings:
         sys.exit("ALLOWED_USER_IDS is empty in .env - refusing to start an open bot")
     upload = Path(os.getenv("UPLOAD_DIR", str(ROOT / "uploads"))).expanduser()
     upload.mkdir(parents=True, exist_ok=True)
-    log_dir = ROOT / "logs"
+    log_dir = Path(os.getenv("EDITH_LOG_DIR", "").strip() or ROOT / "logs")  # tests point this at a temp dir
     log_dir.mkdir(exist_ok=True)
     return Settings(
         bot_token=token,
