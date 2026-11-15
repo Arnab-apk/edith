@@ -5,7 +5,7 @@
     .venv\\Scripts\\python tools/bench_models.py --base-url URL --model M --api-key-env NAME
     .venv\\Scripts\\python tools/bench_models.py --provider gemini --list-models
 
-Uses Edith's REAL system prompt and tool list (bot.jarvis.brain.model_tools() -> openai_tools()),
+Uses Edith's REAL system prompt and tool list (bot.assistant.brain.model_tools() -> openai_tools()),
 falling back to data/bench/tools_snapshot.json if bot/ cannot be imported. Talks to any
 OpenAI-compatible /chat/completions endpoint (60 s timeout, no retries).
 SAFETY: tools are NEVER executed. Tool calls are recorded and answered with canned fake results
@@ -58,7 +58,7 @@ def load_edith(force_snapshot: bool = False) -> dict[str, Any]:
     if not force_snapshot:
         try:
             from bot.actions import registry
-            from bot.jarvis import brain
+            from bot.assistant import brain
             registry.load_all()
             tools = brain.openai_tools(brain.model_tools())
             OUT_DIR.mkdir(parents=True, exist_ok=True)

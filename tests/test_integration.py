@@ -15,7 +15,7 @@ from telegram.ext import CallbackQueryHandler, CommandHandler, MessageHandler
 from bot import automation as auto
 from bot import config, main, security
 from bot.actions import registry as reg
-from bot.jarvis import brain
+from bot.assistant import brain
 from bot.modules import MODULE_NAMES
 
 OWNER, STRANGER = 111, 999
@@ -128,7 +128,7 @@ def test_callback_prefixes_distinct_and_all_buttons_routed(app):
             prefixes.append(m.group(1))
     assert len(prefixes) == len(set(prefixes)), prefixes
     assert "confirm" in prefixes
-    assert set(MODULE_NAMES) - {"system", "power", "shell", "files", "desktop", "media", "jarvis",
+    assert set(MODULE_NAMES) - {"system", "power", "shell", "files", "desktop", "media", "assistant",
                                 "automation"} == set()
     # every callback_data literal in the source must be routed to exactly one handler
     used = set()
@@ -195,7 +195,7 @@ STRANGER_TEXTS = ["/start", "/help", "/status", "/cmd whoami", "/ps Get-Date", "
                   "/lock", "/screenshot", "/webcam", "/get C:\\Windows\\win.ini", "/rm x", "/type hi",
                   "/j shut down the pc", "/remind 1m hi", "/macro run x", "/volume 50", "/clip"]
 STRANGER_BUTTONS = ["power:shutdown", "confirm:deadbeefdeadbeef:y", "system:status", "files:o:1:0",
-                    "desktop:shot", "media:mute", "jarvis:voice:off", "automation:cancel:1", "shell:cd:home"]
+                    "desktop:shot", "media:mute", "assistant:voice:off", "automation:cancel:1", "shell:cd:home"]
 
 
 async def test_unauthorized_updates_get_no_reply(app, api, spies):

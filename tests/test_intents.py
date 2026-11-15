@@ -1,4 +1,4 @@
-"""Tests for bot/jarvis/intents.py - the deterministic instant-intent matcher."""
+"""Tests for bot/assistant/intents.py - the deterministic instant-intent matcher."""
 from __future__ import annotations
 
 import time
@@ -6,8 +6,8 @@ import time
 import pytest
 
 from bot.actions.registry import REGISTRY, load_all, validate_args
-from bot.jarvis import intents
-from bot.jarvis.intents import Intent, match
+from bot.assistant import intents
+from bot.assistant.intents import Intent, match
 
 load_all()
 
@@ -275,7 +275,7 @@ def test_every_intent_is_a_valid_registry_call():
 
 
 def test_dangerous_intents_are_flagged_in_registry():
-    """Sanity: the matcher can produce dangerous actions; they stay dangerous so jarvis confirms them."""
+    """Sanity: the matcher can produce dangerous actions; they stay dangerous so the assistant confirms them."""
     dangerous = {it.action for p in POSITIVE for it in match(p) if REGISTRY[it.action].dangerous}
     assert {"power_lock", "power_shutdown", "kill_process", "webcam_photo"} <= dangerous
 

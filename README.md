@@ -255,11 +255,14 @@ Edith gives a phone full control of a PC, so security is built into the core, no
 
 - **Owner allowlist.** Every handler, including commands, buttons, voice and files, goes through `@owner_only`. Unknown users get **no reply at all**, so the bot can't be probed, and every attempt is written to `logs/audit.log`.
 - **Confirm before danger.** Shell, kill, delete, move, power, typing and mouse actions are flagged `dangerous` in the registry. The Telegram UI, the AI tool loop and automations all have to get a **✅ Confirm** tap (random one-time token, chat-bound, 120 s expiry) before they run.
+- **Hard limits, even after Confirm.** Commands that wipe disks, delete Windows or backups, change boot settings, turn off antivirus or the firewall, or add admin accounts are blocked outright (`bot/actions/policy.py`). One mis-tap or misheard voice note can't brick the PC.
+- **Your own rules.** `EDITH_SAFE_MODE=1` makes Edith look-only (no dangerous actions at all). `EDITH_DISABLED_ACTIONS=webcam_photo,category:power` switches off specific actions or whole groups. `control doctor` shows what's active.
+- **Full audit trail.** Every action that runs or is blocked is logged to `logs/audit.log` with its arguments (secrets redacted).
 - **Prompt-injection aware.** Text the AI reads from your PC (files, window titles, command output) can't skip the Confirm step: the check sits in code, not in the prompt.
 - **No stealth, ever.** Edith runs in a visible window. Autostart is a normal Task Scheduler entry you turn on yourself (`control autostart on`, removable any time). There's no keylogging, no hiding from Task Manager, no AV evasion.
 - **Secrets stay local.** `.env` is git-ignored and readable only by your Windows account.
 
-See [`REVIEW.md`](REVIEW.md) for the full security review.
+See [`docs/SECURITY_REVIEW.md`](docs/SECURITY_REVIEW.md) for the full security review.
 
 ## 🎛 Control panel
 
@@ -285,7 +288,7 @@ flowchart TB
     subgraph PC["🖥 Your Windows PC"]
         SEC["🛡 owner_only + audit log"]
         MOD["modules/<br/>Telegram UI layer"]
-        AI["jarvis/<br/>STT · LLM tool loop · TTS · memory"]
+        AI["assistant/<br/>STT · LLM tool loop · TTS · memory"]
         AUTO["automation/<br/>JobQueue · triggers · macros · SQLite"]
         CONF["⚠️ confirm.py<br/>Confirm/Cancel gate"]
         REG[("actions/registry.py<br/>50 typed actions<br/>= single source of truth")]
@@ -304,7 +307,7 @@ flowchart TB
 bot/
 ├── actions/       pure async actions (system, power, shell, files, desktop, media, automation) + registry
 ├── modules/       Telegram commands and buttons that call actions
-├── jarvis/        voice (faster-whisper, edge-tts, PyAV), brain (provider-pluggable tool loop), memory
+├── assistant/     voice (speech-to-text, edge-tts), brain (tool loop), instant intents, memory
 ├── automation/    scheduler, triggers, macros (SQLite)
 ├── confirm.py     shared Confirm/Cancel gate
 ├── security.py    owner allowlist + audit log

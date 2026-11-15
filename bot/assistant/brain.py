@@ -28,7 +28,7 @@ prompt-injected model picks it) - the owner is asked via bot.confirm.ask_confirm
 result saying the owner declined. The `chat_id` parameter of shell/file actions is never
 chosen by the model: it is hidden from the tool schemas and forced to the current chat. Files produced by actions are sent
 straight to the chat via send_result; only their text goes back to the model.
-The instant path (bot.jarvis.intents) runs through the same execute_tool, so it confirms too.
+The instant path (bot.assistant.intents) runs through the same execute_tool, so it confirms too.
 
 History handling: only plain text crosses turns (see memory.py). Within one turn the
 assistant content (incl. thinking blocks / provider tool-call fields) is appended verbatim.
@@ -54,7 +54,7 @@ from ..actions.registry import REGISTRY, ActionResult, describe_call, run_action
 from ..confirm import ask_confirm
 from ..utils import send_result
 
-log = logging.getLogger("jarvis.brain")
+log = logging.getLogger("assistant.brain")
 
 Progress = Callable[[str], Awaitable[None]]
 
@@ -430,13 +430,13 @@ async def execute_tool(bot, chat_id: int, name: str, args: Any, reply: BrainRepl
 
 # ====================================================================== instant path (no LLM)
 def match_intents(text: str) -> list[Any] | None:
-    """bot.jarvis.intents.match(text), imported lazily; None when missing or on any error."""
+    """bot.assistant.intents.match(text), imported lazily; None when missing or on any error."""
     try:
         from . import intents as _intents
     except ImportError:
         return None
     except Exception:  # noqa: BLE001 - a broken intents module must never break Edith
-        log.exception("bot.jarvis.intents failed to import")
+        log.exception("bot.assistant.intents failed to import")
         return None
     try:
         found = _intents.match(text)

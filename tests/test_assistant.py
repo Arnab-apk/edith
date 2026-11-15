@@ -14,8 +14,8 @@ import pytest
 from anthropic.types.beta import BetaMessage
 
 from bot.actions import registry as r
-from bot.jarvis import brain, voice
-from bot.jarvis.memory import Memory
+from bot.assistant import brain, voice
+from bot.assistant.memory import Memory
 
 
 # ====================================================================== fixtures / fakes
@@ -415,7 +415,7 @@ async def test_transcribe_with_fake_whisper_cuda_fallback(monkeypatch):
 def test_module_contract():
     from telegram.ext import Application
 
-    from bot.modules import jarvis as mod
+    from bot.modules import assistant as mod
 
     names = [c for c, _ in mod.COMMANDS]
     assert names == ["j", "voice", "persona", "forget"]
@@ -427,7 +427,7 @@ def test_module_contract():
     hs = app.handlers[0]
     assert len(hs) == 6
     cb = [h for h in hs if type(h).__name__ == "CallbackQueryHandler"][0]
-    assert cb.pattern.pattern == "^jarvis:"
+    assert cb.pattern.pattern == "^assistant:"
     assert [h.callback for h in app.handlers[mod.TEXT_GROUP]] == [mod.on_text]  # later group
     # warm-up is scheduled, not run: registering must never block or load models
     jobs = {j.name for j in app.job_queue.jobs()}
@@ -473,7 +473,7 @@ def _update(user_id):
 
 async def test_cmd_j_end_to_end(monkeypatch, tmp_path):
     from bot.config import settings
-    from bot.modules import jarvis as mod
+    from bot.modules import assistant as mod
 
     mem = Memory(state_path=tmp_path / "s.json", default_voice=True)
     monkeypatch.setattr(mod, "memory", mem)
@@ -508,7 +508,7 @@ async def test_cmd_j_end_to_end(monkeypatch, tmp_path):
 
 async def test_cmd_j_reports_config_error(monkeypatch, tmp_path):
     from bot.config import settings
-    from bot.modules import jarvis as mod
+    from bot.modules import assistant as mod
 
     monkeypatch.setattr(mod, "memory", Memory(state_path=tmp_path / "s.json", default_voice=False))
 
@@ -739,16 +739,16 @@ async def test_tool_call_written_as_text_is_executed(monkeypatch, actions):
 def test_match_intents_is_defensive(monkeypatch):
     import sys
 
-    monkeypatch.setitem(sys.modules, "bot.jarvis.intents", None)  # module missing -> ImportError
-    monkeypatch.delattr(sys.modules["bot.jarvis"], "intents", raising=False)  # package attribute would mask it
+    monkeypatch.setitem(sys.modules, "bot.assistant.intents", None)  # module missing -> ImportError
+    monkeypatch.delattr(sys.modules["bot.assistant"], "intents", raising=False)  # package attribute would mask it
     assert brain.match_intents("lock the pc") is None
 
     class Broken:
         @staticmethod
         def match(text):
             raise RuntimeError("bug")
-    monkeypatch.setitem(sys.modules, "bot.jarvis.intents", Broken)
-    monkeypatch.setattr(sys.modules["bot.jarvis"], "intents", Broken, raising=False)
+    monkeypatch.setitem(sys.modules, "bot.assistant.intents", Broken)
+    monkeypatch.setattr(sys.modules["bot.assistant"], "intents", Broken, raising=False)
     assert brain.match_intents("lock the pc") is None
 
 
@@ -775,7 +775,7 @@ async def test_instant_intents_skip_llm_but_still_confirm(monkeypatch, actions, 
 
 async def test_turn_uses_instant_path_without_llm(monkeypatch, tmp_path, actions):
     from bot.config import settings
-    from bot.modules import jarvis as mod
+    from bot.modules import assistant as mod
 
     monkeypatch.setattr(mod, "memory", Memory(state_path=tmp_path / "s.json", default_voice=True))
     monkeypatch.setattr(brain, "match_intents", lambda text: [_Intent("snap", {}, "Taking a screenshot.")])
@@ -801,7 +801,7 @@ def test_plain_text_reaches_edith_and_nothing_else():
     from telegram.ext import Application
 
     from bot.modules import MODULE_NAMES
-    from bot.modules import jarvis as mod
+    from bot.modules import assistant as mod
 
     app = Application.builder().token("123:abc").build()
     for name in MODULE_NAMES:
@@ -826,7 +826,7 @@ def test_plain_text_reaches_edith_and_nothing_else():
 # ====================================================================== round 2: feedback + voice flow
 async def test_voice_note_flow_heard_status_text_and_voice(monkeypatch, tmp_path):
     from bot.config import settings
-    from bot.modules import jarvis as mod
+    from bot.modules import assistant as mod
 
     monkeypatch.setattr(mod, "memory", Memory(state_path=tmp_path / "s.json", default_voice=True))
     monkeypatch.setattr(brain, "match_intents", lambda text: None)
@@ -869,7 +869,7 @@ async def test_voice_note_flow_heard_status_text_and_voice(monkeypatch, tmp_path
 
 async def test_failed_turn_is_not_stored_and_never_silent(monkeypatch, tmp_path):
     from bot.config import settings
-    from bot.modules import jarvis as mod
+    from bot.modules import assistant as mod
 
     mem = Memory(state_path=tmp_path / "s.json", default_voice=True)
     monkeypatch.setattr(mod, "memory", mem)
@@ -894,7 +894,7 @@ async def test_failed_turn_is_not_stored_and_never_silent(monkeypatch, tmp_path)
 
 
 async def test_warmup_jobs_never_raise(monkeypatch):
-    from bot.modules import jarvis as mod
+    from bot.modules import assistant as mod
 
     def bad_whisper():
         raise RuntimeError("no model")

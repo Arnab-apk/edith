@@ -378,7 +378,7 @@ def cmd_doctor(_: argparse.Namespace | None = None) -> int:
 
         import ctranslate2
 
-        from .jarvis.voice import _add_nvidia_dll_dirs
+        from .assistant.voice import _add_nvidia_dll_dirs
         _add_nvidia_dll_dirs()
         cuda = ctranslate2.get_cuda_device_count()
         libs = True
@@ -405,6 +405,8 @@ def cmd_doctor(_: argparse.Namespace | None = None) -> int:
             _row(t, n > 0, "Actions", f"{n} registered")
         except BaseException as e:  # config may sys.exit
             _row(t, False, "Actions", str(e))
+    from .actions import policy
+    _row(t, True, "Guardrails", policy.summary())
     auto = _task_exists()
     _row(t, None if not auto else True, "Autostart", "on" if auto else "off")
     con.print(t)

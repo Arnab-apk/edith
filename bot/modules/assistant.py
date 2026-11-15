@@ -22,12 +22,12 @@ from telegram import InlineKeyboardButton, InlineKeyboardMarkup, Update
 from telegram.constants import ChatAction
 from telegram.ext import Application, CallbackQueryHandler, CommandHandler, ContextTypes, MessageHandler, filters
 
-from ..jarvis import brain, voice
-from ..jarvis.memory import memory
+from ..assistant import brain, voice
+from ..assistant.memory import memory
 from ..security import owner_only, redact
 from ..utils import TG_LIMIT, arg_text, reply_text, run_blocking
 
-log = logging.getLogger("jarvis")
+log = logging.getLogger("assistant")
 
 COMMANDS: list[tuple[str, str]] = [
     ("j", "Ask Edith: /j <request> (or just type, or send a voice note)"),
@@ -209,8 +209,8 @@ async def on_voice(update: Update, context: ContextTypes.DEFAULT_TYPE) -> None:
 
 def _voice_keyboard() -> InlineKeyboardMarkup:
     return InlineKeyboardMarkup([[
-        InlineKeyboardButton("🔊 Voice on", callback_data="jarvis:voice:on"),
-        InlineKeyboardButton("🔇 Voice off", callback_data="jarvis:voice:off"),
+        InlineKeyboardButton("🔊 Voice on", callback_data="assistant:voice:on"),
+        InlineKeyboardButton("🔇 Voice off", callback_data="assistant:voice:off"),
     ]])
 
 
@@ -297,7 +297,7 @@ def register(app: Application) -> None:
     app.add_handler(CommandHandler("persona", cmd_persona))
     app.add_handler(CommandHandler("forget", cmd_forget))
     app.add_handler(MessageHandler(filters.UpdateType.MESSAGE & (filters.VOICE | filters.AUDIO), on_voice))
-    app.add_handler(CallbackQueryHandler(on_button, pattern=r"^jarvis:"))
+    app.add_handler(CallbackQueryHandler(on_button, pattern=r"^assistant:"))
     app.add_handler(MessageHandler(filters.UpdateType.MESSAGE & filters.TEXT & ~filters.COMMAND, on_text),
                     group=TEXT_GROUP)
     if app.job_queue is not None:  # jobs run only once the bot is actually started (not in tests)

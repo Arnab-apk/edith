@@ -1,10 +1,10 @@
 """Instant intents: a deterministic, LLM-free matcher for everyday voice/chat commands.
 
-    from bot.jarvis.intents import match
+    from bot.assistant.intents import match
     match("hey edith, mute and lock the pc")
     -> [Intent("mute", {"state": "on"}, "Muted."), Intent("power_lock", {}, "Locking the PC.")]
 
-Contract (bot/modules/jarvis.py depends on it):
+Contract (bot/modules/assistant.py depends on it):
   * match(text) -> list[Intent] | None. None means "not sure - let the LLM handle the whole request".
   * Every Intent names a bot.actions REGISTRY action, and its args pass registry.validate_args
     (tests/test_intents.py checks this for every positive phrase). Never emits chat_id.

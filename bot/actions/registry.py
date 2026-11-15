@@ -38,6 +38,7 @@ from pathlib import Path
 from typing import Any, Awaitable, Callable, Literal
 
 log = logging.getLogger("actions")
+_audit = logging.getLogger("audit")  # handler (rotating, secret-redacting) is set up in bot.security
 
 FileKind = Literal["document", "photo", "video", "voice", "audio"]
 
@@ -213,19 +214,31 @@ def validate_args(act: Action, kwargs: dict[str, Any]) -> dict[str, Any]:
 async def run_action(name: str, /, **kwargs: Any) -> ActionResult:
     """Validate and run an action. Does NOT confirm dangerous actions - the caller must.
     Unexpected exceptions are turned into ActionResult(ok=False) so callers never crash."""
+    from . import policy  # local import: policy type-checks against Action from this module
+
     act = get_action(name)
     try:
         clean = validate_args(act, kwargs)
     except ValueError as e:
         return ActionResult(text=str(e), ok=False)
+    blocked = policy.check(act, clean)
+    if blocked:
+        _audit.warning("BLOCKED %s reason=%r", _short_call(name, clean), blocked)
+        return ActionResult(text=blocked, ok=False, data={"blocked": True})
     try:
         res = await act.func(**clean)
     except Exception as e:  # noqa: BLE001 - surface every failure to the user/model
         log.exception("action %s failed", name)
-        return ActionResult(text=f"{name} failed: {type(e).__name__}: {e}", ok=False)
+        res = ActionResult(text=f"{name} failed: {type(e).__name__}: {e}", ok=False)
     if not isinstance(res, ActionResult):
-        return ActionResult(text=str(res))
+        res = ActionResult(text=str(res))
+    _audit.info("RAN %s ok=%s%s", _short_call(name, clean), res.ok, " DANGEROUS" if act.dangerous else "")
     return res
+
+
+def _short_call(name: str, kwargs: dict[str, Any], limit: int = 200) -> str:
+    s = describe_call(name, kwargs)
+    return s if len(s) <= limit else s[: limit - 1] + "…"
 
 
 def describe_call(name: str, kwargs: dict[str, Any]) -> str:

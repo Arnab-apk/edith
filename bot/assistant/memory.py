@@ -18,7 +18,7 @@ from pathlib import Path
 
 from ..config import ROOT
 
-log = logging.getLogger("jarvis.memory")
+log = logging.getLogger("assistant.memory")
 
 MAX_TURNS = int(os.getenv("JARVIS_HISTORY_TURNS", "12"))  # user+assistant pairs kept
 MAX_MSG_CHARS = 4000  # cap each stored message so history stays cheap

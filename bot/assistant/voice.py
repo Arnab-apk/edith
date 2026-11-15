@@ -36,7 +36,7 @@ import numpy as np
 
 from ..utils import run_blocking
 
-log = logging.getLogger("jarvis.voice")
+log = logging.getLogger("assistant.voice")
 
 SAMPLE_RATE = 16000          # Whisper input rate
 OPUS_RATE = 48000            # Telegram voice notes: OGG/Opus 48 kHz mono
