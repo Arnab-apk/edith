@@ -266,7 +266,8 @@ async def pwd(chat_id: int = 0) -> ActionResult:
 
 
 @action("run_program", "Start a program, open a file with its default app, or launch something on PATH "
-        "(e.g. 'notepad', 'C:\\Tools\\app.exe', 'report.pdf'). Does not wait for it to finish.",
+        "(e.g. 'C:\\Tools\\app.exe', 'report.pdf'). Does not wait for it to finish. "
+        "For installed apps (brave, whatsapp, spotify...) use open_app instead: it needs no confirmation.",
         dangerous=True, category="shell",
         params={"target": "program name, or path to an executable/file (relative to the working directory)",
                 "args": "optional command-line arguments",

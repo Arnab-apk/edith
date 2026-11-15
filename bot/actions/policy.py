@@ -7,6 +7,8 @@ Settings (.env or `control config set`):
   EDITH_SAFE_MODE=1                 block every dangerous action (look-only mode)
   EDITH_DISABLED_ACTIONS=a,b        block these actions; "category:power" blocks a whole group
   EDITH_ALLOW_RISKY_SHELL=1         allow the catastrophic shell commands listed below (not advised)
+  EDITH_SKIP_CONFIRM=a,b            no Confirm prompt for these (never for shell/delete/move/automations);
+                                    "none" brings back every prompt
 """
 from __future__ import annotations
 
@@ -76,10 +78,42 @@ def check(act: "Action", args: dict[str, Any]) -> str | None:
     return None
 
 
+# ---------------------------------------------------------------- when to ask Confirm
+# Confirm is for things a mistake would really hurt. These are dangerous=True for safety reviews
+# but harmless and instantly reversible, so they run without a prompt by default.
+DEFAULT_NO_CONFIRM = frozenset({"power_lock", "power_monitor_off"})
+SAFE_MOUSE_MODES = frozenset({"move", "move_by", "scroll"})  # clicks still confirm
+# Never skippable, whatever the settings say: these can run code, destroy data or create
+# unattended automations.
+ALWAYS_CONFIRM = frozenset({"shell_cmd", "shell_ps", "run_program", "delete_path", "move_path",
+                            "save_macro", "run_macro", "schedule_action", "create_trigger"})
+
+
+def skip_confirm_set() -> set[str]:
+    """EDITH_SKIP_CONFIRM=kill_process,webcam_photo adds to the defaults; "none" restores every prompt."""
+    raw = os.getenv("EDITH_SKIP_CONFIRM", "").strip().lower()
+    if raw in ("none", "off", "0"):
+        return set()
+    return set(DEFAULT_NO_CONFIRM) | {x.strip() for x in raw.split(",") if x.strip()}
+
+
+def needs_confirm(act: "Action", args: dict[str, Any] | None = None) -> bool:
+    """True when the owner must tap Confirm before `act` runs (slash commands and AI alike)."""
+    if not act.dangerous:
+        return False
+    if act.name in ALWAYS_CONFIRM:
+        return True
+    if act.name == "mouse_control" and str((args or {}).get("action", "")).lower() in SAFE_MOUSE_MODES:
+        return False
+    return act.name not in skip_confirm_set()
+
+
 def summary() -> str:
     """One-line description of the active guardrails (for doctor and /status-style output)."""
     parts = ["safe mode ON" if _on("EDITH_SAFE_MODE") else "safe mode off"]
     off = disabled_entries()
     parts.append(f"{len(off)} disabled ({', '.join(sorted(off))})" if off else "nothing disabled")
     parts.append("risky shell ALLOWED" if _on("EDITH_ALLOW_RISKY_SHELL") else "risky shell blocked")
+    skip = sorted(skip_confirm_set())
+    parts.append(f"no Confirm for: {', '.join(skip)}" if skip else "Confirm for every dangerous action")
     return ", ".join(parts)

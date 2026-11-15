@@ -14,6 +14,7 @@ from telegram.ext import CallbackQueryHandler, CommandHandler, MessageHandler
 
 from bot import automation as auto
 from bot import config, main, security
+from bot.actions import policy
 from bot.actions import registry as reg
 from bot.assistant import brain
 from bot.modules import MODULE_NAMES
@@ -392,9 +393,28 @@ def test_every_action_classified(app):
                          "create_trigger", "save_macro", "run_macro"} | {
                          n for n in reg.REGISTRY if n.startswith("power_") and n != "power_abort"}
     for n in must_be_dangerous:
-        assert reg.REGISTRY[n].dangerous, n
-        assert brain.needs_confirm(n)
-    assert brain.needs_confirm("open_url") and not reg.REGISTRY["open_url"].dangerous
+        assert reg.REGISTRY[n].dangerous, n  # still flagged: safe mode / disabled-actions rules apply
+        if n in policy.DEFAULT_NO_CONFIRM:
+            assert not brain.needs_confirm(n), n  # harmless + reversible: no prompt by default
+        else:
+            assert brain.needs_confirm(n), n
+    # mouse: moving/scrolling needs no prompt, clicking does
+    assert not brain.needs_confirm("mouse_control", {"action": "move", "x": 1, "y": 1})
+    assert brain.needs_confirm("mouse_control", {"action": "click"})
+    # open_url from the AI: well-known sites are fine, unknown links still ask (exfiltration guard)
+    assert not reg.REGISTRY["open_url"].dangerous
+    assert not brain.needs_confirm("open_url", {"url": "https://www.youtube.com/results?search_query=lofi"})
+    assert brain.needs_confirm("open_url", {"url": "https://attacker.example/?q=secret"})
+    assert brain.needs_confirm("open_url", {"url": "javascript:alert(1)"})
+
+
+def test_skip_confirm_setting_cannot_unlock_shell_or_delete(monkeypatch):
+    monkeypatch.setenv("EDITH_SKIP_CONFIRM", "kill_process,shell_cmd,delete_path,run_macro")
+    assert not brain.needs_confirm("kill_process")
+    for n in ("shell_cmd", "delete_path", "run_macro"):
+        assert brain.needs_confirm(n), n  # ALWAYS_CONFIRM wins over the setting
+    monkeypatch.setenv("EDITH_SKIP_CONFIRM", "none")
+    assert brain.needs_confirm("power_lock")  # "none" restores every prompt
 
 
 # ---------------------------------------------------------------- secrets

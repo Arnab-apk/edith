@@ -14,7 +14,7 @@ Your PC does it, then answers you out loud.
 [![Telegram Bot](https://img.shields.io/badge/Telegram-bot-26A5E4?logo=telegram&logoColor=white)](https://core.telegram.org/bots)
 [![python-telegram-bot 22](https://img.shields.io/badge/python--telegram--bot-22.x-26A5E4)](https://python-telegram-bot.org/)
 [![AI: Groq](https://img.shields.io/badge/AI-Groq-F55036)](#1-get-running-in-5-minutes)
-[![Tests](https://img.shields.io/badge/tests-547%20passing-2EA44F)](#-development)
+[![Tests](https://img.shields.io/badge/tests-548%20passing-2EA44F)](#-development)
 [![License: MIT](https://img.shields.io/badge/license-MIT-yellow.svg)](LICENSE)
 
 [Get started](#1-get-running-in-5-minutes) · [Talk to Edith](#2-three-ways-to-talk-to-edith) · [Instant commands](#3-instant-commands-no-ai-needed) · [Macros](#6-teaching-edith-tasks-with-macros) · [Automations](#7-reminders-schedules-and-triggers) · [All commands](#8-every-slash-command) · [Safety](#9-safety-confirm-guardrails-and-your-own-rules) · [Troubleshooting](#12-troubleshooting)
@@ -144,7 +144,7 @@ These phrases are recognised on your PC and run immediately: no AI call, no rate
 
 | You say | Edith does |
 |---|---|
-| "lock the PC" · "lock my laptop" · "lock the screen" | locks Windows (asks Confirm) |
+| "lock the PC" · "lock my laptop" · "lock the screen" | locks Windows |
 | "screenshot" · "send me a screenshot" · "show me my screen" | sends a screenshot of all monitors |
 | "set volume to 30" · "volume forty-five" · "fifty percent volume" | sets the volume |
 | "volume up" · "louder" · "turn the sound down by 5" · "max volume" | changes the volume |
@@ -291,7 +291,7 @@ The default step is `notify`. A cooldown keeps alerts from spamming you.
 | `/gpu` | detailed GPU stats |
 | **Power** | |
 | `/power` | buttons: lock, sleep, hibernate, restart, shutdown, logoff, abort, monitor off ⚠️ |
-| `/lock` | lock the PC ⚠️ |
+| `/lock` | lock the PC |
 | `/abort` | cancel a pending shutdown/restart |
 | **Shell** | |
 | `/cmd <command>` | run a cmd.exe command ⚠️ |
@@ -315,7 +315,7 @@ The default step is `notify`. A cooldown keeps alerts from spamming you.
 | `/msg <text>` | popup message on the PC |
 | `/type <text>` | type text on the PC ⚠️ |
 | `/hotkey <keys>` | press keys, e.g. `/hotkey ctrl+shift+esc` ⚠️ |
-| `/mouse move x y \| moveby dx dy \| click [x y] \| right \| double \| scroll N` | mouse control ⚠️ |
+| `/mouse move x y \| moveby dx dy \| click [x y] \| right \| double \| scroll N` | mouse control (⚠️ for clicks) |
 | **Media** | |
 | `/volume [0-100 \| +N \| -N]` | set or change the volume |
 | `/mute [on\|off]` | mute |
@@ -338,7 +338,9 @@ The default step is `notify`. A cooldown keeps alerts from spamming you.
 
 **Who can use it:** only the Telegram account(s) linked during setup, and only in a **private chat** with the bot. Everyone else gets no reply at all, and every attempt is logged. If you add the bot to a group, it ignores the group, so your screenshots and files never leak to other members.
 
-**Confirm buttons:** shell, kill, delete, move, power, typing, mouse, webcam and saving macros/automations always show **✅ Confirm / ❌ Cancel**, including when the AI or a macro asks. Unanswered prompts expire after 2 minutes and count as Cancel. When the AI wants to open a link, it asks too, so text on your screen can't trick it into sending your data to a website.
+**Confirm buttons, only when it matters:** Edith asks **✅ Confirm / ❌ Cancel** before anything a mistake would really hurt: shell commands, starting programs by path, deleting or moving files, closing apps, shutdown/restart/sleep/log off, typing, hotkeys, mouse clicks, the webcam, and saving macros or automations. That includes when the AI or a macro asks. Unanswered prompts expire after 2 minutes and count as Cancel.
+
+**No prompt for harmless things:** opening apps, locking the PC, turning the monitor off, moving or scrolling the mouse, and opening well-known websites (YouTube, Google, GitHub, Gmail, …). If the AI wants to open a link that **isn't** well known, it still asks, so text on your screen can't trick it into sending your data to a stranger's website.
 
 **Hard blocks, even after Confirm:** Edith refuses shell commands that
 - format or wipe a disk, or delete a whole drive or Windows,
@@ -355,6 +357,8 @@ A mis-tap or a misheard voice note can never brick your PC. Ordinary commands (`
 | `EDITH_SAFE_MODE 1` | **look-only**: every dangerous action is blocked |
 | `EDITH_DISABLED_ACTIONS webcam_photo,shell_cmd` | switch off specific actions |
 | `EDITH_DISABLED_ACTIONS category:power` | switch off a whole group (`power`, `shell`, `files`, `desktop`, `media`, `apps`, `automation`, `system`) |
+| `EDITH_SKIP_CONFIRM kill_process,webcam_photo` | no Confirm prompt for these (shell, delete, move, starting programs and automations can never skip it) |
+| `EDITH_SKIP_CONFIRM none` | bring back every prompt, including lock and mouse moves |
 
 `control doctor` shows which guardrails are active.
 
@@ -399,7 +403,7 @@ Settings live in `.env` in the Edith folder (readable only by your Windows accou
 | `TTS_VOICE` | `en-GB-SoniaNeural` | Edith's spoken voice (any Microsoft neural voice name) |
 | `UPLOAD_DIR` | `Downloads\TelegramUploads` | where files you send from your phone are saved |
 | `SHELL_TIMEOUT` | `60` | max seconds for a shell command |
-| `EDITH_SAFE_MODE` · `EDITH_DISABLED_ACTIONS` · `EDITH_ALLOW_RISKY_SHELL` | off | guardrails (section 9) |
+| `EDITH_SAFE_MODE` · `EDITH_DISABLED_ACTIONS` · `EDITH_SKIP_CONFIRM` · `EDITH_ALLOW_RISKY_SHELL` | off | guardrails and Confirm prompts (section 9) |
 
 ---
 
@@ -502,7 +506,7 @@ async def battery() -> ActionResult:
 ### 🧪 Development
 
 ```powershell
-.venv\Scripts\python -m pytest -q          # 547 tests, no network, no real OS actions
+.venv\Scripts\python -m pytest -q          # 548 tests, no network, no real OS actions
 .venv\Scripts\python -m bot.cli doctor     # environment check
 ```
 

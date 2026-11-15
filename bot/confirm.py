@@ -22,6 +22,7 @@ from telegram import Bot, InlineKeyboardButton, InlineKeyboardMarkup, Update
 from telegram.constants import ParseMode
 from telegram.ext import Application, CallbackQueryHandler, ContextTypes
 
+from .actions import policy
 from .actions.registry import describe_call, get_action, run_action
 from .security import audit, owner_only
 from .utils import send_result
@@ -60,7 +61,7 @@ async def confirm_and_run(update: Update, context: ContextTypes.DEFAULT_TYPE, na
     """Run a registered action from a module handler, confirming first if it is dangerous,
     then send its ActionResult to the chat."""
     chat_id = update.effective_chat.id
-    if get_action(name).dangerous:
+    if policy.needs_confirm(get_action(name), kwargs):
         if not await ask_confirm(context.bot, chat_id, summary or describe_call(name, kwargs)):
             return
     result = await run_action(name, **kwargs)

@@ -179,11 +179,30 @@ def touches_network_path(name: str, args: dict[str, Any]) -> bool:
     return any(isinstance(v, str) and _NETWORK_PATH.match(os.path.expandvars(v)) for v in args.values())
 
 
+def trusted_url(url: str) -> bool:
+    """Well-known sites (YouTube, Google, GitHub, Gmail, ...) can't be used to smuggle data to an
+    attacker, so the AI may open them without a prompt. Unknown links still need Confirm."""
+    from .intents import _SITES  # the same site list the instant commands use
+
+    host = (urlparse(str(url)).hostname or "").lower().removeprefix("www.")
+    if not host or urlparse(str(url)).scheme not in ("http", "https"):
+        return False
+    known = {(urlparse(u).hostname or "").lower().removeprefix("www.") for u in _SITES.values()}
+    return host in known
+
+
 def needs_confirm(name: str, args: dict[str, Any] | None = None) -> bool:
+    from ..actions import policy
+
     act = REGISTRY.get(name)
     if act is None:
         return False
-    return act.dangerous or name in AI_CONFIRM_ACTIONS or touches_network_path(name, args or {})
+    args = args or {}
+    if touches_network_path(name, args):
+        return True
+    if name in AI_CONFIRM_ACTIONS:
+        return not trusted_url(args.get("url", ""))
+    return policy.needs_confirm(act, args)
 
 
 def model_tools() -> list[dict[str, Any]]:
