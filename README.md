@@ -10,14 +10,14 @@ Your PC does it, then answers you out loud.
 <br>
 
 [![Python 3.12](https://img.shields.io/badge/python-3.12-3776AB?logo=python&logoColor=white)](https://www.python.org/)
-[![Windows 10/11](https://img.shields.io/badge/Windows-10%20%7C%2011-0078D6?logo=windows&logoColor=white)](#-install-in-60-seconds)
+[![Windows 10/11](https://img.shields.io/badge/Windows-10%20%7C%2011-0078D6?logo=windows&logoColor=white)](#1-get-running-in-5-minutes)
 [![Telegram Bot](https://img.shields.io/badge/Telegram-bot-26A5E4?logo=telegram&logoColor=white)](https://core.telegram.org/bots)
 [![python-telegram-bot 22](https://img.shields.io/badge/python--telegram--bot-22.x-26A5E4)](https://python-telegram-bot.org/)
-[![AI: Groq](https://img.shields.io/badge/AI-Groq-F55036)](#-one-key-everything-works)
-[![Tests](https://img.shields.io/badge/tests-512%20passing-2EA44F)](#-development)
+[![AI: Groq](https://img.shields.io/badge/AI-Groq-F55036)](#1-get-running-in-5-minutes)
+[![Tests](https://img.shields.io/badge/tests-547%20passing-2EA44F)](#-development)
 [![License: MIT](https://img.shields.io/badge/license-MIT-yellow.svg)](LICENSE)
 
-[Install](#-install-in-60-seconds) · [Features](#-what-it-can-do) · [Voice mode](#-edith-voice-mode) · [One key](#-one-key-everything-works) · [Commands](#-command-reference) · [Safety](#-security-model) · [FAQ](#-faq)
+[Get started](#1-get-running-in-5-minutes) · [Talk to Edith](#2-three-ways-to-talk-to-edith) · [Instant commands](#3-instant-commands-no-ai-needed) · [Macros](#6-teaching-edith-tasks-with-macros) · [Automations](#7-reminders-schedules-and-triggers) · [All commands](#8-every-slash-command) · [Safety](#9-safety-confirm-guardrails-and-your-own-rules) · [Troubleshooting](#12-troubleshooting)
 
 </div>
 
@@ -85,54 +85,354 @@ Edith  🔔 Trigger armed: battery < 20%
 ```
 <sub>An illustrative conversation; exact wording varies with the AI model you pick.</sub>
 
-## 🚀 Install in 60 seconds
+## 📘 Contents
 
-> **You need:** Windows 10/11 and Telegram on your phone. No Python and no admin rights.
+1. [Get running in 5 minutes](#1-get-running-in-5-minutes)
+2. [Three ways to talk to Edith](#2-three-ways-to-talk-to-edith)
+3. [Instant commands (no AI needed)](#3-instant-commands-no-ai-needed)
+4. [Asking Edith anything](#4-asking-edith-anything)
+5. [Doing several things in a row](#5-doing-several-things-in-a-row)
+6. [Teaching Edith tasks with macros](#6-teaching-edith-tasks-with-macros)
+7. [Reminders, schedules and triggers](#7-reminders-schedules-and-triggers)
+8. [Every slash command](#8-every-slash-command)
+9. [Safety: Confirm, guardrails and your own rules](#9-safety-confirm-guardrails-and-your-own-rules)
+10. [The control panel on your PC](#10-the-control-panel-on-your-pc)
+11. [Settings reference](#11-settings-reference)
+12. [Troubleshooting](#12-troubleshooting)
+13. [What Edith can't do (yet)](#13-what-edith-cant-do-yet)
+14. [For developers](#-for-developers)
 
-**1.** Download this repo (green **Code** button → *Download ZIP*) or:
+---
 
-```powershell
-git clone https://github.com/Arnab-apk/edith.git
-cd edith
+## 1. Get running in 5 minutes
+
+You need Windows 10/11 and Telegram on your phone.
+
+1. **Create your bot.** In Telegram, open **@BotFather**, send `/newbot`, pick a name and a username ending in `bot`, and copy the token it gives you.
+2. **Get a free Groq key** at [console.groq.com/keys](https://console.groq.com/keys) → *Create API Key* (it starts with `gsk_`). This one key powers both Edith's hearing and her thinking.
+3. **Install.** Download the latest `Edith-…-windows.zip` from [**Releases**](https://github.com/Arnab-apk/edith/releases/latest), extract it (for example to `D:\Edith`), and double-click **`Edith.exe`**. The wizard:
+   - asks for the bot token and checks it with Telegram,
+   - tells you to press **START** on your bot from your phone, then links your Telegram account automatically,
+   - asks for the Groq key and tests it with a real question.
+4. **Start.** From then on, double-click `Edith.exe` and keep its window open. You get *"✅ … is online"* in Telegram.
+5. **Try it.** Send `/help`, then hold the mic button and say *"take a screenshot"*.
+
+> Windows may show a SmartScreen warning because `Edith.exe` isn't code-signed. Click **More info → Run anyway**.
+
+---
+
+## 2. Three ways to talk to Edith
+
+All three do the same thing. Use whichever is handiest.
+
+| Way | Example | Notes |
+|---|---|---|
+| 🎙 **Voice note** | hold the mic, say *"Edith, lock my PC"* | Edith shows what she heard, then does it. She also answers out loud if `/voice on` is set. |
+| 💬 **Plain message** | `what's using my RAM?` | No slash needed. |
+| ⌨️ **Slash command** | `/status`, `/volume 30` | Precise, and never goes through the AI. |
+
+**Voice tips**
+- Speak naturally. "Edith", "hey Edith", "please" and "can you" are ignored, so *"hey Edith, could you lock the PC please"* works.
+- Short commands work best when you speak clearly. Edith always shows **🎙 what she heard**, so you can see if she misheard.
+- `/voice off` gives text-only answers (faster). `/voice on` adds spoken replies, which are kept short; the full answer is always in the text.
+
+---
+
+## 3. Instant commands (no AI needed)
+
+These phrases are recognised on your PC and run immediately: no AI call, no rate limit, works even if Groq is down. Many variations work; here are tested examples.
+
+| You say | Edith does |
+|---|---|
+| "lock the PC" · "lock my laptop" · "lock the screen" | locks Windows (asks Confirm) |
+| "screenshot" · "send me a screenshot" · "show me my screen" | sends a screenshot of all monitors |
+| "set volume to 30" · "volume forty-five" · "fifty percent volume" | sets the volume |
+| "volume up" · "louder" · "turn the sound down by 5" · "max volume" | changes the volume |
+| "mute" · "unmute" · "toggle mute" · "what's the volume" | mute control |
+| "pause" · "play" · "next song" · "previous track" · "stop the music" | media keys (works with Spotify, YouTube, VLC…) |
+| "how's my PC" · "cpu usage" · "how much battery is left" · "how hot is my laptop" · "what's my IP" | system status |
+| "gpu status" · "what's the GPU temperature" | graphics card stats |
+| "top processes" · "what's eating my RAM" · "what's using my CPU" | top processes |
+| "what apps are open" · "list open windows" | open windows |
+| "open brave" · "launch spotify" · "open vs code" · "open whatsapp" | opens any installed app (Start Menu or Store) |
+| "open youtube" · "go to github.com" · "pull up gmail" · "open google maps" | opens a website |
+| "google best pizza near me" · "search youtube for lofi music" | web search |
+| "record my screen for 30 seconds" · "record the screen" | screen recording (max 60 s) |
+| "take a webcam photo" | one webcam photo (asks Confirm) |
+| "what's on my clipboard" · "what did I just copy" | reads the clipboard |
+| "say hello world" · "announce dinner is ready" | speaks out loud **on the PC** |
+| "show a popup saying back in 5 minutes" | popup message on the PC screen |
+| "remind me in 10 minutes to stretch" | reminder |
+| "shut down" · "restart" · "sleep" · "hibernate" · "log off" · "turn off the monitor" | power (asks Confirm; shutdown/restart wait 15 s) |
+| "cancel the shutdown" · "abort" | cancels a pending shutdown/restart |
+| "close chrome" · "kill notepad" | closes that app (asks Confirm) |
+
+Anything Edith doesn't recognise instantly goes to the AI (next section), so you never need to memorise these.
+
+---
+
+## 4. Asking Edith anything
+
+For everything else, Edith's AI (Groq `openai/gpt-oss-120b`) works out which of her **52 actions** to use. Examples:
+
+- *"Which three programs are using the most memory?"*
+- *"Is my battery charging, and how much disk space do I have left?"*
+- *"Find the PDF I downloaded called invoice"* → searches files
+- *"Send me the file report.docx from my desktop"* → uploads it to the chat (folders are zipped, 50 MB max)
+- *"What's my GPU temperature and fan speed?"*
+- *"Type 'on my way' into the window I have open"* → types on the PC (asks Confirm)
+- *"Run ipconfig"* → shell command (asks Confirm)
+
+**What Edith can reach (52 actions)**
+
+| Area | Actions |
+|---|---|
+| System | status, GPU, processes, kill a process, network, open windows |
+| Power | lock, sleep, hibernate, restart, shutdown, log off, monitor off, abort |
+| Apps & web | open any installed app, list installed apps, open a URL |
+| Files | list folders, send a file, find files, make folders, move, delete (to Recycle Bin) |
+| Shell | cmd and PowerShell commands, start a program, working directory |
+| Screen & input | screenshot, screen recording, webcam photo, clipboard, popup, type text, hotkeys, mouse |
+| Media | volume, mute, media keys, speak out loud |
+| Automation | reminders, scheduled jobs, triggers, macros, notifications |
+
+**Conversation memory:** Edith remembers your last 12 exchanges, so follow-ups like *"and the GPU?"* work. That memory is cleared by `/forget` and when Edith restarts.
+
+**Personality:** `/persona` shows Edith's personality, `/persona you are a pirate` changes it, and `/persona reset` restores the default. Safety rules can't be changed by a persona.
+
+---
+
+## 5. Doing several things in a row
+
+Join commands with **and**, **then**, or commas.
+
+- **Instant chains**, if every part is a known instant command: *"set volume to 20 then take a screenshot"*, *"mute and lock the PC"*. They run in the order you said them.
+- **AI chains** for everything else: *"check my battery and then tell me the top 3 processes"*. The AI runs one action, reads the result, then decides the next, up to 8 steps per request.
+
+Each dangerous step still asks for Confirm. If a long chain stops early, say the rest as a new message.
+
+---
+
+## 6. Teaching Edith tasks with macros
+
+A **macro** is a named list of steps that Edith saves permanently (it survives restarts). Teach it once, then run it any time.
+
+**Save one**, typed:
+```
+/macro save work: open_app brave; volume level=30; open_url https://github.com
+```
+or by voice: *"Edith, save a macro called work that opens Brave, sets the volume to 30 and opens GitHub."* Edith shows the exact steps with a **Confirm** button before saving.
+
+**Run it:** `/macro run work`, or say *"run my work macro"*.
+
+**Manage:** `/macro list` shows all macros and their steps; `/macro del work` deletes one.
+
+**Step format:** `action_name value key=value`, separated by `;`. Use the action names from section 4 (for example `screenshot`, `volume level=30`, `open_app brave`, `open_url https://…`, `notify text=Done`, `say text=Hello`, `power_lock`).
+
+- If a macro contains a dangerous step (for example `power_lock`), Edith asks Confirm **every time it runs**.
+- Say the word **"macro"** when asking by voice (*"run my work macro"*). Edith only looks at macros when you mention them.
+
+---
+
+## 7. Reminders, schedules and triggers
+
+All of these are saved and survive restarts. `/jobs` lists everything, and `/cancel <id>` removes one.
+
+**Reminders**
+```
+/remind 10m stretch
+/remind 2h30m take the laundry out
+/remind 22:00 call mom
+/remind tomorrow 9:00 standup
+```
+Or just say *"remind me in 10 minutes to stretch"*.
+
+**Repeat an action:** `/every <interval> <steps>` (minimum 1 minute)
+```
+/every 30m screenshot
+/every 2h notify text=Drink water
 ```
 
-**2.** Double-click **`setup.bat`**. The wizard:
-
-| Step | What happens |
-|:---:|---|
-| 📦 | Installs [uv](https://docs.astral.sh/uv/), then **Python 3.12** and every package into a local `.venv`. Nothing system-wide. |
-| 🤖 | Asks for your bot token: open **[@BotFather](https://t.me/BotFather)** → `/newbot` → paste the token. Checked live with Telegram. |
-| 📱 | Tells you to tap **START** on your new bot. Edith **detects your Telegram ID automatically** and locks the bot to you. |
-| 🧠 | Asks for one free **Groq key** and tests it live. That key powers the AI brain and voice recognition. |
-| 🔒 | Writes `.env` and restricts it to your Windows account. Optionally adds a *visible* autostart entry. |
-
-**3.** Double-click **`start.bat`**, then on your phone send **`/help`**. That's it. 🎉
-
-> 💡 Prefer one icon? Run `toolsuild_exe.bat` once to create **`Edith.exe`** in the folder. Double-click it: the first time it runs setup, after that it starts Edith. `Edith.exe doctor` / `Edith.exe setup` work too.
-
-<details>
-<summary><b>Git Bash / terminal users</b></summary>
-
-```bash
-./setup.sh          # same installer
-./control.bat start # or: .venv/Scripts/python -m bot.cli start
+**Run at a time:** `/at HH:MM [daily] <steps>`
 ```
-</details>
+/at 22:00 power_shutdown
+/at 9:00 daily open_app brave; open_url https://mail.google.com
+```
 
-## 🧩 What it can do
+**Triggers: act when something happens:** `/when <condition> [for 2m] [cooldown 15m] [steps]`
+```
+/when cpu>90 for 2m                 → notifies you when CPU stays above 90% for 2 minutes
+/when battery<20                    → low-battery alert
+/when temp>85                       → overheating alert (if Windows exposes temperatures)
+/when ram>90
+/when idle>30m power_lock           → locks the PC after 30 idle minutes
+/when process chrome.exe starts
+/when process game.exe stops notify text=Game closed
+```
+The default step is `notify`. A cooldown keeps alerts from spamming you.
 
-| | Area | Highlights |
-|:---:|---|---|
-| 📊 | **System** | CPU / RAM / GPU (nvidia-smi) / disks / battery / temps / IPs / uptime, top processes, kill, network, open windows |
-| 🔌 | **Power** | Lock, sleep, hibernate, restart, shutdown (with an abort window), logoff, monitor off |
-| 💻 | **Shell** | `cmd` and PowerShell with timeouts and process-tree kill, per-chat working directory, start programs |
-| 📁 | **Files** | Browse with tap-to-open buttons, download (folders auto-zipped, 50 MB cap), upload from your phone, find, Recycle-Bin delete, move |
-| 🖥 | **Desktop** | Multi-monitor screenshots, **screen recording to MP4**, webcam photo, clipboard, open URLs, popups, type, hotkeys, mouse |
-| 🎵 | **Media** | Volume / mute (Core Audio), media-key buttons, **speak text out loud on the PC** |
-| 🎙 | **Edith AI** | Voice notes or `/j`: STT, an LLM tool loop over all actions, spoken reply. Memory, persona, voice on/off |
-| ⏰ | **Automation** | Reminders, interval and daily jobs, system triggers with cooldowns, multi-step macros, all persistent |
+**Safety rules for automations**
+- Creating a schedule or trigger with a dangerous step shows the exact steps and needs **Confirm**.
+- Once approved, it can run unattended, and Edith **messages you every time it runs**.
+- Steps can't create or run other automations or macros. Put several steps directly in the job instead: `/at 9:00 daily open_app brave; volume level=30`.
 
-## 🎙 Edith voice mode
+---
+
+## 8. Every slash command
+
+| Command | What it does |
+|---|---|
+| **System** | |
+| `/status` | CPU, RAM, GPU, disks, battery, temperatures, IPs, uptime |
+| `/procs [cpu\|mem] [limit]` | top processes |
+| `/kill <pid\|name>` | kill a process ⚠️ |
+| `/net` | network interfaces, traffic, connections |
+| `/apps` | open windows |
+| `/gpu` | detailed GPU stats |
+| **Power** | |
+| `/power` | buttons: lock, sleep, hibernate, restart, shutdown, logoff, abort, monitor off ⚠️ |
+| `/lock` | lock the PC ⚠️ |
+| `/abort` | cancel a pending shutdown/restart |
+| **Shell** | |
+| `/cmd <command>` | run a cmd.exe command ⚠️ |
+| `/ps <command>` | run a PowerShell command ⚠️ |
+| `/cd [path]` · `/pwd` | change or show the working directory (no path = quick picks) |
+| `/run <path>` | start a program or open a file ⚠️ |
+| **Files** | |
+| `/ls [path]` | list a folder; tap entries to browse or download |
+| `/get <path>` | send a file (folders are zipped, 50 MB max) |
+| `/find <pattern> [folder]` | find files by name |
+| `/rm <path>` | move to the Recycle Bin ⚠️ |
+| `/mkdir <path>` | create a folder |
+| `/mv <src> <dst>` | move or rename ⚠️ |
+| *(send any file or photo)* | saved to your upload folder on the PC |
+| **Desktop** | |
+| `/screenshot [monitor] [full]` | screenshot (`full` also sends the full-resolution file) |
+| `/record <seconds>` | screen recording, max 60 s |
+| `/webcam` | one webcam photo ⚠️ |
+| `/clip get` · `/clip set <text>` | read or set the clipboard |
+| `/url <http(s) link>` | open a link in the PC's browser |
+| `/msg <text>` | popup message on the PC |
+| `/type <text>` | type text on the PC ⚠️ |
+| `/hotkey <keys>` | press keys, e.g. `/hotkey ctrl+shift+esc` ⚠️ |
+| `/mouse move x y \| moveby dx dy \| click [x y] \| right \| double \| scroll N` | mouse control ⚠️ |
+| **Media** | |
+| `/volume [0-100 \| +N \| -N]` | set or change the volume |
+| `/mute [on\|off]` | mute |
+| `/media` | media-key buttons |
+| `/say <text>` | speak out loud on the PC |
+| **Edith** | |
+| `/j <request>` | ask Edith (same as a plain message) |
+| `/voice on\|off` | spoken replies |
+| `/persona [text\|reset]` | personality |
+| `/forget` | clear conversation memory |
+| **Automation** | |
+| `/remind` · `/every` · `/at` · `/when` · `/macro` · `/jobs` · `/cancel` | see sections 6 and 7 |
+| `/help` | this list in Telegram |
+
+⚠️ = asks for a **Confirm** tap first.
+
+---
+
+## 9. Safety: Confirm, guardrails and your own rules
+
+**Who can use it:** only the Telegram account(s) linked during setup, and only in a **private chat** with the bot. Everyone else gets no reply at all, and every attempt is logged. If you add the bot to a group, it ignores the group, so your screenshots and files never leak to other members.
+
+**Confirm buttons:** shell, kill, delete, move, power, typing, mouse, webcam and saving macros/automations always show **✅ Confirm / ❌ Cancel**, including when the AI or a macro asks. Unanswered prompts expire after 2 minutes and count as Cancel. When the AI wants to open a link, it asks too, so text on your screen can't trick it into sending your data to a website.
+
+**Hard blocks, even after Confirm:** Edith refuses shell commands that
+- format or wipe a disk, or delete a whole drive or Windows,
+- change boot settings or delete backups/shadow copies,
+- turn off antivirus or the firewall,
+- create admin accounts or hide software from Task Manager.
+
+A mis-tap or a misheard voice note can never brick your PC. Ordinary commands (`dir`, `del report.txt`, `git status`, …) work normally.
+
+**Your own rules:** set these with `control config set KEY VALUE`, then restart Edith.
+
+| Setting | Effect |
+|---|---|
+| `EDITH_SAFE_MODE 1` | **look-only**: every dangerous action is blocked |
+| `EDITH_DISABLED_ACTIONS webcam_photo,shell_cmd` | switch off specific actions |
+| `EDITH_DISABLED_ACTIONS category:power` | switch off a whole group (`power`, `shell`, `files`, `desktop`, `media`, `apps`, `automation`, `system`) |
+
+`control doctor` shows which guardrails are active.
+
+**Audit trail:** `logs/audit.log` records every command, every Confirm/Cancel, and every action that ran or was blocked, with secrets redacted. View it with `control logs --audit`.
+
+**If your bot token leaks:** in @BotFather send `/revoke`, then run `Edith.exe setup` with the new token.
+
+---
+
+## 10. The control panel on your PC
+
+`Edith.exe` (or `control.bat`) accepts commands:
+
+| Command | What it does |
+|---|---|
+| `Edith.exe` | start Edith (first run: install + setup) |
+| `Edith.exe menu` | interactive menu |
+| `Edith.exe setup` | redo setup: new token, new Groq key, re-link your phone |
+| `Edith.exe doctor` | checks everything (✓/✗): token, users, AI brain (with a real test question), speech, actions, guardrails, autostart |
+| `Edith.exe config show` | all settings (secrets masked) |
+| `Edith.exe config set KEY VALUE` | change one setting |
+| `Edith.exe autostart on` / `off` | start Edith when you log in (a visible Task Scheduler entry) |
+| `Edith.exe logs` / `logs --audit` | recent log / security audit log |
+
+Only one copy of Edith can run at a time; a second copy refuses to start, because two copies would steal each other's Telegram messages.
+
+---
+
+## 11. Settings reference
+
+Settings live in `.env` in the Edith folder (readable only by your Windows account). Change them with `control config set`, then restart Edith.
+
+| Setting | Default | Meaning |
+|---|---|---|
+| `BOT_TOKEN` | from setup | your Telegram bot token |
+| `ALLOWED_USER_IDS` | from setup | Telegram user IDs allowed to use Edith (comma-separated) |
+| `GROQ_API_KEY` | from setup | your Groq key |
+| `LLM_MODEL` | `openai/gpt-oss-120b` | AI model |
+| `LLM_FALLBACK_MODEL` | `qwen/qwen3.8-27b` | backup model when the main one is busy (`off` to disable) |
+| `STT_PROVIDER` | `groq` | speech-to-text: `groq`, `nvidia` or `local` (keeps audio on your PC; slower) |
+| `WHISPER_LANGUAGE` | auto | force a language for voice notes, e.g. `en` or `hi` |
+| `TTS_VOICE` | `en-GB-SoniaNeural` | Edith's spoken voice (any Microsoft neural voice name) |
+| `UPLOAD_DIR` | `Downloads\TelegramUploads` | where files you send from your phone are saved |
+| `SHELL_TIMEOUT` | `60` | max seconds for a shell command |
+| `EDITH_SAFE_MODE` · `EDITH_DISABLED_ACTIONS` · `EDITH_ALLOW_RISKY_SHELL` | off | guardrails (section 9) |
+
+---
+
+## 12. Troubleshooting
+
+Start with **`Edith.exe doctor`**: it tests everything and says what to fix.
+
+| Problem | Fix |
+|---|---|
+| No reply at all | Is the Edith window open? Are you in a **private** chat with the bot? Run `doctor`. |
+| "Edith is already running" | Close the other Edith window (check the taskbar), then start again. |
+| Voice note gets "⚠️ … timed out" | Slow connection; send it again. Shorter notes upload faster. |
+| "I'm being rate limited" / slow answers | Groq's free tier allows a limited number of requests per minute. Wait a minute; instant commands still work meanwhile. |
+| Edith misheard you | Check the 🎙 line, speak a bit slower, or set `WHISPER_LANGUAGE en`. |
+| "couldn't find an installed app called …" | Use the name as it appears in the Start Menu. *"list my installed apps"* shows them. |
+| Setup says "Access is denied" | Edith is still running; close it first. Already installed? Then just start `Edith.exe`. |
+| Something was "Blocked for safety" | That command matches a hard block (section 9). Run it yourself on the PC if you really mean it. |
+
+---
+
+## 13. What Edith can't do (yet)
+
+- **Operate inside apps.** She can open WhatsApp but can't type into it or send a message to a contact. The same goes for clicking buttons inside other programs.
+- **Long-term memory.** She forgets conversations on restart, and *"remember that…"* isn't saved. Use macros for tasks you repeat.
+- **Run without the PC.** Edith runs on your PC, so if it sleeps or shuts down, she's offline. `Edith.exe autostart on` helps after a reboot.
+- **Unlimited free use.** Groq's free tier is rate-limited, while instant commands and slash commands are not.
+- **Other operating systems.** Windows only.
+
+---
+
+## 🛠 For developers
+
+### 🎙 How voice mode works
 
 ```mermaid
 flowchart LR
@@ -154,131 +454,7 @@ flowchart LR
 - **Text-to-speech** uses Microsoft neural voices through `edge-tts` (default `en-GB-SoniaNeural`). Pick any voice with `control config set TTS_VOICE …`.
 - Edith **never claims an action she didn't run**, and every dangerous tool call stops and waits for your tap.
 
-## 🧠 One key, everything works
-
-Edith uses a single free **Groq** key (from [console.groq.com](https://console.groq.com/keys)) for both halves of voice control:
-
-| Job | Model | Measured |
-|---|---|---|
-| **Listening** (speech-to-text) | `whisper-large-v3` on Groq | about 0.7 s per voice note |
-| **Thinking** (picking actions) | `openai/gpt-oss-120b` on Groq, backup `qwen/qwen3.8-27b` | about 1–4 s per request |
-| **Instant commands** | none: "lock my PC", "open brave", "volume 30", "take a screenshot"… are matched on your PC | no AI call at all |
-
-Groq's free tier is rate-limited (about 8,000 tokens per minute for the main model), so Edith sends only the ~10 tools relevant to each request. If Groq is busy it retries once on the backup model, and listening falls back to a local Whisper model. Advanced users can point `LLM_BASE_URL` / `LLM_MODEL` at any OpenAI-compatible server with `control config set`.
-
-## 📖 Command reference
-
-<details>
-<summary><b>📊 System and 🔌 Power</b></summary>
-
-| Command | Description |
-|---|---|
-| `/status` | PC health: CPU, RAM, GPU, disks, battery, temps, IPs, uptime |
-| `/procs [cpu\|mem] [limit]` | Top processes |
-| `/kill <pid\|name>` | Kill a process ⚠️ |
-| `/net` | Network interfaces, traffic and connections |
-| `/apps` | Visible application windows |
-| `/gpu` | Detailed GPU stats |
-| `/power` | Power menu: lock, sleep, hibernate, restart, shutdown, logoff, abort, monitor off ⚠️ |
-| `/lock` | Lock the PC ⚠️ |
-| `/abort` | Cancel a pending shutdown or restart |
-</details>
-
-<details>
-<summary><b>💻 Shell and 📁 Files</b></summary>
-
-| Command | Description |
-|---|---|
-| `/cmd <command>` | Run a cmd.exe command ⚠️ |
-| `/ps <command>` | Run a PowerShell command ⚠️ |
-| `/cd [path]` / `/pwd` | Change or show the working directory (no argument = quick picks) |
-| `/run <path>` | Start a program or open a file ⚠️ |
-| `/ls [path]` | List a folder (tap to browse or download) |
-| `/get <path>` | Send a file to Telegram (folders are zipped, 50 MB max) |
-| `/find <pattern> [folder]` | Find files by name |
-| `/rm <path>` | Move to the Recycle Bin ⚠️ |
-| `/mkdir <path>` | Create a folder |
-| `/mv <src> <dst>` | Move or rename ⚠️ |
-| *(send a file or photo)* | Saved to your upload folder on the PC |
-</details>
-
-<details>
-<summary><b>🖥 Desktop and 🎵 Media</b></summary>
-
-| Command | Description |
-|---|---|
-| `/screenshot [monitor] [full]` | Screenshot of all monitors |
-| `/record <seconds>` | Record the screen (max 60 s) |
-| `/webcam` | Take one webcam photo |
-| `/clip get` / `/clip set <text>` | Clipboard |
-| `/url <http(s) url>` | Open a URL in the PC's browser |
-| `/msg <text>` | Show a popup message on the PC |
-| `/type <text>` / `/hotkey ctrl+c` | Type text or press keys ⚠️ |
-| `/mouse move\|moveby\|click\|right\|double\|scroll` | Mouse control ⚠️ |
-| `/volume [0-100\|+N\|-N]` / `/mute [on\|off]` | Volume |
-| `/media` | Media-key buttons (play/pause, next, volume) |
-| `/say <text>` | Speak text out loud on the PC |
-</details>
-
-<details>
-<summary><b>🎙 Edith AI</b></summary>
-
-| Command | Description |
-|---|---|
-| *(voice note)* | Talk to Edith |
-| `/j <request>` | Ask Edith in text |
-| `/voice on\|off` | Spoken replies on or off |
-| `/persona [text\|reset]` | Show or change Edith's personality (safety rules stay locked) |
-| `/forget` | Clear conversation memory |
-</details>
-
-<details>
-<summary><b>⏰ Automation</b></summary>
-
-Steps are `action arg key=value`, using any action name from the registry. Separate several steps with `;`.
-
-| Command | Example |
-|---|---|
-| `/remind` | `/remind 10m stretch` · `/remind tomorrow 9:00 call mom` |
-| `/every` | `/every 30m screenshot` (minimum 1 minute) |
-| `/at` | `/at 22:00 power_shutdown` ⚠️ · `/at 9:00 daily notify text=Standup` |
-| `/when` | `/when cpu>90 for 2m` · `/when battery<20` · `/when process x.exe starts` |
-| `/macro` | `/macro save work: open_url https://github.com; volume level=30` · `/macro run work` |
-| `/jobs` / `/cancel <id>` | List or cancel reminders, jobs and triggers |
-</details>
-
-⚠️ = asks for a **Confirm** tap before running.
-
-## 🛡 Security model
-
-Edith gives a phone full control of a PC, so security is built into the core, not added later.
-
-- **Owner allowlist.** Every handler, including commands, buttons, voice and files, goes through `@owner_only`. Unknown users get **no reply at all**, so the bot can't be probed, and every attempt is written to `logs/audit.log`.
-- **Confirm before danger.** Shell, kill, delete, move, power, typing and mouse actions are flagged `dangerous` in the registry. The Telegram UI, the AI tool loop and automations all have to get a **✅ Confirm** tap (random one-time token, chat-bound, 120 s expiry) before they run.
-- **Hard limits, even after Confirm.** Commands that wipe disks, delete Windows or backups, change boot settings, turn off antivirus or the firewall, or add admin accounts are blocked outright (`bot/actions/policy.py`). One mis-tap or misheard voice note can't brick the PC.
-- **Your own rules.** `EDITH_SAFE_MODE=1` makes Edith look-only (no dangerous actions at all). `EDITH_DISABLED_ACTIONS=webcam_photo,category:power` switches off specific actions or whole groups. `control doctor` shows what's active.
-- **Full audit trail.** Every action that runs or is blocked is logged to `logs/audit.log` with its arguments (secrets redacted).
-- **Prompt-injection aware.** Text the AI reads from your PC (files, window titles, command output) can't skip the Confirm step: the check sits in code, not in the prompt.
-- **No stealth, ever.** Edith runs in a visible window. Autostart is a normal Task Scheduler entry you turn on yourself (`control autostart on`, removable any time). There's no keylogging, no hiding from Task Manager, no AV evasion.
-- **Secrets stay local.** `.env` is git-ignored and readable only by your Windows account.
-
-See [`docs/SECURITY_REVIEW.md`](docs/SECURITY_REVIEW.md) for the full security review.
-
-## 🎛 Control panel
-
-`control.bat` (double-click for a menu):
-
-```text
-control setup              # credentials wizard (token, phone link, AI brain, voice)
-control start              # run the bot
-control doctor             # ✓/✗ health check: token, users, AI brain, GPU, actions, autostart
-control config show        # settings (secrets masked)
-control config set KEY V   # change one setting
-control autostart on|off   # visible Task Scheduler entry at logon
-control logs [--audit]     # recent log / security audit log
-```
-
-## 🏗 Architecture
+### 🏗 Architecture
 
 ```mermaid
 flowchart TB
@@ -323,38 +499,16 @@ async def battery() -> ActionResult:
     return ActionResult(text=f"🔋 {b.percent:.0f}% {'charging' if b.power_plugged else 'on battery'}")
 ```
 
-## 🧪 Development
+### 🧪 Development
 
 ```powershell
-.venv\Scripts\python -m pytest -q          # 512 tests, no network, no real OS actions
+.venv\Scripts\python -m pytest -q          # 547 tests, no network, no real OS actions
 .venv\Scripts\python -m bot.cli doctor     # environment check
 ```
 
 Tests mock every OS call, so the suite never shuts down, locks, types or opens anything on your machine.
 
-## ❓ FAQ
-
-<details><summary><b>Does it work on macOS or Linux?</b></summary>
-Not yet. The action layer uses Windows APIs (Core Audio, Win32, Task Scheduler). The registry design makes a port possible, and PRs are welcome.
-</details>
-
-<details><summary><b>Do I need a GPU?</b></summary>
-No. Speech-to-text uses CUDA when an NVIDIA GPU is available and falls back to CPU automatically. <code>control doctor</code> shows which one is in use.
-</details>
-
-<details><summary><b>Can someone else control my PC if they find my bot?</b></summary>
-No. Only Telegram user IDs in <code>ALLOWED_USER_IDS</code> are served. Everyone else gets silence and an entry in the audit log. Keep your bot token private; if it leaks, revoke it in @BotFather (<code>/revoke</code>) and run <code>control setup</code>.
-</details>
-
-<details><summary><b>Is it really free?</b></summary>
-Yes on Groq's free tier, which is rate-limited rather than unlimited. Instant commands and slash commands never use it.
-</details>
-
-<details><summary><b>How do I stop it?</b></summary>
-Close the Edith window (or press Ctrl+C). To stop autostart: <code>control autostart off</code>.
-</details>
-
-## 🗺 Roadmap
+### 🗺 Roadmap
 
 - [x] System, power, shell, files, desktop and media control
 - [x] Edith voice mode with pluggable AI brains
@@ -364,11 +518,11 @@ Close the Edith window (or press Ctrl+C). To stop autostart: <code>control autos
 - [ ] System-tray icon
 - [ ] macOS / Linux action backends
 
-## 🤝 Contributing
+### 🤝 Contributing
 
 Issues and PRs are welcome. Read [CONTRIBUTING.md](CONTRIBUTING.md) and keep its hard rules: every handler `@owner_only`, destructive actions `dangerous=True`, no stealth features, and tests that never touch the real OS.
 
-## 📜 License
+### 📜 License
 
 [MIT](LICENSE) © 2026 Arnab
 
