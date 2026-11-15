@@ -1,5 +1,7 @@
 # Edith — reviewer report (integration + security)
 
+> **Historical review (2026-11-14).** File names below predate later changes: `bot/jarvis/` is now `bot/assistant/`, `bot/modules/jarvis.py` is now `bot/modules/assistant.py`, and the brain now runs on Groq. Current guardrails are described in the README's Safety section and in `bot/actions/policy.py`.
+
 Reviewer pass, 2026-11-14. PLAN.md was not changed.
 
 ## Summary
