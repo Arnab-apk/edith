@@ -8,7 +8,7 @@ Settings (.env or `control config set`):
   EDITH_DISABLED_ACTIONS=a,b        block these actions; "category:power" blocks a whole group
   EDITH_ALLOW_RISKY_SHELL=1         allow the catastrophic shell commands listed below (not advised)
   EDITH_SKIP_CONFIRM=a,b            no Confirm prompt for these (never for shell/delete/move/automations);
-                                    "none" brings back every prompt
+                                    "all" = prompt only for those; "none" brings back every prompt
 """
 from __future__ import annotations
 
@@ -105,7 +105,14 @@ def needs_confirm(act: "Action", args: dict[str, Any] | None = None) -> bool:
         return True
     if act.name == "mouse_control" and str((args or {}).get("action", "")).lower() in SAFE_MOUSE_MODES:
         return False
+    if _skip_all():
+        return False
     return act.name not in skip_confirm_set()
+
+
+def _skip_all() -> bool:
+    """EDITH_SKIP_CONFIRM=all: no prompt for anything except the ALWAYS_CONFIRM group."""
+    return os.getenv("EDITH_SKIP_CONFIRM", "").strip().lower() == "all"
 
 
 def summary() -> str:
@@ -114,6 +121,9 @@ def summary() -> str:
     off = disabled_entries()
     parts.append(f"{len(off)} disabled ({', '.join(sorted(off))})" if off else "nothing disabled")
     parts.append("risky shell ALLOWED" if _on("EDITH_ALLOW_RISKY_SHELL") else "risky shell blocked")
+    if _skip_all():
+        parts.append("Confirm only for shell/delete/move/programs/automations")
+        return ", ".join(parts)
     skip = sorted(skip_confirm_set())
     parts.append(f"no Confirm for: {', '.join(skip)}" if skip else "Confirm for every dangerous action")
     return ", ".join(parts)

@@ -415,6 +415,11 @@ def test_skip_confirm_setting_cannot_unlock_shell_or_delete(monkeypatch):
         assert brain.needs_confirm(n), n  # ALWAYS_CONFIRM wins over the setting
     monkeypatch.setenv("EDITH_SKIP_CONFIRM", "none")
     assert brain.needs_confirm("power_lock")  # "none" restores every prompt
+    monkeypatch.setenv("EDITH_SKIP_CONFIRM", "all")  # "all" skips everything but the locked group
+    assert not brain.needs_confirm("kill_process") and not brain.needs_confirm("mouse_control", {"action": "click"})
+    for n in policy.ALWAYS_CONFIRM:
+        assert brain.needs_confirm(n), n
+    assert brain.needs_confirm("open_url", {"url": "https://attacker.example/?q=secret"})
 
 
 # ---------------------------------------------------------------- secrets

@@ -358,6 +358,7 @@ A mis-tap or a misheard voice note can never brick your PC. Ordinary commands (`
 | `EDITH_DISABLED_ACTIONS webcam_photo,shell_cmd` | switch off specific actions |
 | `EDITH_DISABLED_ACTIONS category:power` | switch off a whole group (`power`, `shell`, `files`, `desktop`, `media`, `apps`, `automation`, `system`) |
 | `EDITH_SKIP_CONFIRM kill_process,webcam_photo` | no Confirm prompt for these (shell, delete, move, starting programs and automations can never skip it) |
+| `EDITH_SKIP_CONFIRM all` | no Confirm prompt for anything except shell, delete, move, starting programs, automations and unknown links |
 | `EDITH_SKIP_CONFIRM none` | bring back every prompt, including lock and mouse moves |
 
 `control doctor` shows which guardrails are active.
