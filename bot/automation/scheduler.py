@@ -1,6 +1,7 @@
 """Reminders and scheduled jobs on PTB's JobQueue, persisted in SQLite and restored at startup.
 
 Kinds:  remind (one-shot message) · once (one-shot steps) · every (repeating) · daily (HH:MM each day)
+        weekly (HH:MM on chosen weekdays; spec["days"] uses Python numbering 0=Mon..6=Sun)
 JobQueue job name = "auto:<task id>", job.data = task id.
 """
 from __future__ import annotations
@@ -158,7 +159,95 @@ def parse_when(text: str, now: datetime | None = None) -> tuple[datetime, str]:
     return now + timedelta(seconds=secs), rest
 
 
+# ---------------------------------------------------------------- weekdays
+DAY_NAMES = ["Mon", "Tue", "Wed", "Thu", "Fri", "Sat", "Sun"]
+_DAY_WORDS = {"mon": 0, "monday": 0, "tue": 1, "tues": 1, "tuesday": 1, "wed": 2, "weds": 2, "wednesday": 2,
+              "thu": 3, "thur": 3, "thurs": 3, "thursday": 3, "fri": 4, "friday": 4,
+              "sat": 5, "saturday": 5, "sun": 6, "sunday": 6}
+_DAY_GROUPS = {"weekday": [0, 1, 2, 3, 4], "workday": [0, 1, 2, 3, 4], "weekend": [5, 6],
+               "day": list(range(7)), "daily": list(range(7))}
+
+
+def _day_set(word: str) -> list[int] | None:
+    w = word.strip().lower()
+    for cand in (w, w[:-1] if w.endswith("s") else w):
+        if cand in _DAY_GROUPS:
+            return _DAY_GROUPS[cand]
+        if cand in _DAY_WORDS:
+            return [_DAY_WORDS[cand]]
+    return None
+
+
+def take_days(text: str) -> tuple[list[int], str] | None:
+    """'every mon,wed and fri at 9:00 x' -> ([0, 2, 4], 'at 9:00 x'); None if no day words lead the text."""
+    toks = text.split()
+    i = 0
+    while i < len(toks) and toks[i].lower() in ("every", "on", "each"):
+        i += 1
+    days: set[int] = set()
+    while i < len(toks):
+        parts = [p for p in re.split(r"[,/&+]+", toks[i]) if p]
+        sets = [_day_set(p) for p in parts]
+        if parts and all(x is not None for x in sets):
+            for x in sets:
+                days.update(x)  # type: ignore[arg-type]
+            i += 1
+        elif days and toks[i].lower() in ("and", "&", ",", "+"):
+            i += 1
+        else:
+            break
+    if not days:
+        return None
+    return sorted(days), " ".join(toks[i:])
+
+
+def parse_weekly(text: str) -> tuple[list[int], tuple[int, int], str] | None:
+    """'every weekday at 9:00 rest' -> ([0..4], (9, 0), 'rest'). None when the text doesn't start with days."""
+    got = take_days(text)
+    if got is None:
+        return None
+    days, rest = got
+    if rest.lower().startswith("at "):
+        rest = rest[3:]
+    try:
+        hm, rest = take_clock(rest)
+    except AutomationError:
+        raise AutomationError("Add a time of day, e.g. 'every monday at 8:00' or 'weekdays 9:00'.") from None
+    return days, hm, rest
+
+
+def describe_days(days: list[int]) -> str:
+    ds = sorted(set(days))
+    if ds == [0, 1, 2, 3, 4]:
+        return "weekdays"
+    if ds == [5, 6]:
+        return "weekends"
+    if len(ds) == 7:
+        return "every day"
+    return ", ".join(DAY_NAMES[d] for d in ds)
+
+
+def ptb_days(days: list[int]) -> tuple[int, ...]:
+    """Python weekday (0=Mon) -> PTB 20+ run_daily numbering (0=Sun..6=Sat)."""
+    return tuple(sorted((d + 1) % 7 for d in set(days)))
+
+
 # ---------------------------------------------------------------- plans (parse only; nothing saved)
+def plan_weekly(text: str) -> Plan:
+    """'every weekday at 9:00 screenshot', 'weekends 10:00 notify hi', 'mon,wed,fri 18:30 x'."""
+    got = parse_weekly(text)
+    if got is None:
+        raise AutomationError("Expected days first, e.g. 'every weekday at 9:00', 'weekends 10:00', "
+                              "'every mon,wed,fri at 18:30'.")
+    days, (h, m), rest = got
+    steps = parse_steps(rest)
+    if len(days) == 7:
+        return Plan(kind="daily", spec={"time": f"{h:02d}:{m:02d}"}, steps=steps,
+                    label=f"daily job at {h:02d}:{m:02d}: {describe_steps(steps)}")
+    return Plan(kind="weekly", spec={"time": f"{h:02d}:{m:02d}", "days": days}, steps=steps,
+                label=f"job {describe_days(days)} at {h:02d}:{m:02d}: {describe_steps(steps)}")
+
+
 def plan_reminder(text: str, now: datetime | None = None) -> Plan:
     when, msg = parse_when(text, now)
     msg = msg.strip()
@@ -171,6 +260,8 @@ def plan_reminder(text: str, now: datetime | None = None) -> Plan:
 
 
 def plan_every(text: str) -> Plan:
+    if take_days(text) is not None:          # "/every monday at 8:00 ..."
+        return plan_weekly(text)
     secs, rest = take_duration(text)
     if secs < MIN_INTERVAL:
         raise AutomationError("Minimum interval is 1 minute.")
@@ -183,6 +274,8 @@ def plan_every(text: str) -> Plan:
 
 def plan_at(text: str, now: datetime | None = None, *, daily: bool | None = None) -> Plan:
     """'22:00 shutdown', '22:00 daily screenshot', 'tomorrow 9:00 notify hi'."""
+    if not daily and take_days(text) is not None:   # "/at mon 8:00 ...", "/at weekdays 9:00 ..."
+        return plan_weekly(text)
     toks = text.split()
     if daily is None:
         daily = False
@@ -240,7 +333,7 @@ async def _notice_callback(context: Any) -> None:
 
 
 def _header(task: Task, late: bool) -> str:
-    icon = {"once": "⏰", "every": "🔁", "daily": "📅", "remind": "⏰"}.get(task.kind, "⚙️")
+    icon = {"once": "⏰", "every": "🔁", "daily": "📅", "weekly": "📅", "remind": "⏰"}.get(task.kind, "⚙️")
     return f"{icon} {'(late) ' if late else ''}Automation #{task.id}: {task.label}"
 
 
@@ -275,6 +368,10 @@ def schedule_task(app: Any, task: Task, *, restoring: bool = False) -> None:
     elif task.kind == "daily":
         h, m = (int(x) for x in task.spec["time"].split(":"))
         jq.run_daily(_job_callback, time=dtime(h, m, tzinfo=local_tz()), data=task.id, name=name)
+    elif task.kind == "weekly":
+        h, m = (int(x) for x in task.spec["time"].split(":"))
+        jq.run_daily(_job_callback, time=dtime(h, m, tzinfo=local_tz()), days=ptb_days(task.spec["days"]),
+                     data=task.id, name=name)
     elif task.kind in ("once", "remind"):
         at = float(task.spec["at"])
         delay = at - time.time()
@@ -335,6 +432,9 @@ async def commit(plan: Plan, chat_id: int) -> Task:
     """Save a plan and activate it. The CALLER must have confirmed plan.summary() if plan.dangerous."""
     app = get_app() if plan.kind != "trigger" else None
     task: Task = await db("add_task", plan, chat_id)
+    if plan.kind == "trigger":
+        from . import triggers
+        await triggers.on_created(task)
     if app is not None:
         try:
             schedule_task(app, task)
@@ -375,7 +475,7 @@ def describe_task(task: Task) -> str:
     else:
         nr = next_run(task)
         when = f" (next {nr.astimezone(local_tz()):%a %H:%M})" if nr else ""
-        icon = {"once": "⏰", "remind": "⏰", "every": "🔁", "daily": "📅"}.get(task.kind, "⚙️")
+        icon = {"once": "⏰", "remind": "⏰", "every": "🔁", "daily": "📅", "weekly": "📅"}.get(task.kind, "⚙️")
         line = f"#{task.id} {icon} {task.label}{when}"
     return line + warn
 

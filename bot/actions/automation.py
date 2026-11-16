@@ -51,30 +51,43 @@ async def create_reminder(when: str, text: str) -> ActionResult:
 
 @action("schedule_action", "Schedule registered actions to run later or repeatedly. kind: 'in' (one-shot after "
         "a delay like '10m'), 'at' (one-shot at a time like '22:00' or 'tomorrow 9:00'), 'daily' (every day at "
-        "HH:MM), 'every' (repeat at an interval like '30m', min 1 minute). " + STEP_HELP,
+        "HH:MM), 'weekly' (chosen weekdays at a time: 'weekdays 9:00', 'weekends 10:00', 'monday 8:00', "
+        "'mon,wed,fri 18:30'), 'every' (repeat at an interval like '30m', min 1 minute). " + STEP_HELP,
         dangerous=True, category="automation",
-        params={"kind": "in | at | daily | every", "when": "delay, time or interval", "steps": "the steps to run"})
-async def schedule_action(kind: Literal["in", "at", "daily", "every"], when: str, steps: str) -> ActionResult:
+        params={"kind": "in | at | daily | weekly | every",
+                "when": "delay, time, interval, or days + time for weekly", "steps": "the steps to run"})
+async def schedule_action(kind: Literal["in", "at", "daily", "weekly", "every"], when: str,
+                          steps: str) -> ActionResult:
     try:
-        _whole(when, "duration" if kind in ("in", "every") else "clock" if kind == "daily" else "when")
-        if kind == "every":
-            plan = scheduler.plan_every(f"{when} {steps}")
-        elif kind == "in":
-            plan = scheduler.plan_in(f"{when} {steps}")
-        elif kind == "daily":
-            plan = scheduler.plan_at(f"{when} {steps}", daily=True)
+        weekly = scheduler.parse_weekly(when) if kind != "in" else None
+        if weekly is not None or kind == "weekly":
+            if weekly is None:
+                raise auto.AutomationError(f"Could not understand {when!r}: use days + time, e.g. "
+                                           "'weekdays 9:00', 'weekends 10:00', 'mon,wed,fri 18:30'.")
+            if weekly[2].strip():
+                raise auto.AutomationError(f"Could not understand {when!r} as days + time.")
+            plan = scheduler.plan_weekly(f"{when} {steps}")
         else:
-            plan = scheduler.plan_at(f"{when} {steps}", daily=False)
+            _whole(when, "duration" if kind in ("in", "every") else "clock" if kind == "daily" else "when")
+            if kind == "every":
+                plan = scheduler.plan_every(f"{when} {steps}")
+            elif kind == "in":
+                plan = scheduler.plan_in(f"{when} {steps}")
+            elif kind == "daily":
+                plan = scheduler.plan_at(f"{when} {steps}", daily=True)
+            else:
+                plan = scheduler.plan_at(f"{when} {steps}", daily=False)
         task = await scheduler.commit(plan, auto.owner_chat_id())
     except auto.AutomationError as e:
         return _err(e)
     return ActionResult(text=f"✅ #{task.id} {task.label}", data={"id": task.id})
 
 
-@action("create_trigger", "Run steps when a PC condition happens (checked every ~30 s, with a cooldown so it "
-        "never spams). condition examples: 'cpu>90 for 2m', 'ram>90', 'battery<20' (while unplugged), "
-        "'temp>85', 'idle>30m', 'process chrome.exe starts', 'process game.exe stops'; optional "
-        "'cooldown 30m'. Default step is notify. " + STEP_HELP,
+@action("create_trigger", "Run steps when something happens on the PC (checked every ~30 s, with a cooldown so "
+        "it never spams). condition examples: 'cpu>90 for 2m', 'ram>90', 'battery<20' (while unplugged), "
+        "'temp>85', 'idle>30m', 'process chrome.exe starts|stops', 'file *.pdf in Downloads' (new file; steps "
+        "may use {file}), 'network lost' / 'network back', 'usb plugged' / 'usb removed' ({drive}), "
+        "'pc locked' / 'pc unlocked'; optional 'cooldown 30m'. Default step is notify. " + STEP_HELP,
         dangerous=True, category="automation",
         params={"condition": "the condition", "steps": "steps to run when it fires (default notify)"})
 async def create_trigger(condition: str, steps: str = "notify") -> ActionResult:

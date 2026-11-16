@@ -17,11 +17,13 @@ from telegram.ext import ContextTypes
 from .config import settings
 
 # ---------------------------------------------------------------- secret redaction
-SECRET_ENV_KEYS = ("ANTHROPIC_API_KEY", "ANTHROPIC_AUTH_TOKEN", "LLM_API_KEY", "OPENAI_API_KEY")
+SECRET_ENV_KEYS = ("ANTHROPIC_API_KEY", "ANTHROPIC_AUTH_TOKEN", "LLM_API_KEY", "OPENAI_API_KEY",
+                   "GROQ_API_KEY", "NVIDIA_API_KEY")
 _SECRET_PATTERNS = [
     re.compile(r"\b\d{6,}:[A-Za-z0-9_-]{30,}\b"),       # Telegram bot tokens
     re.compile(r"\bsk-ant-[A-Za-z0-9_-]{10,}"),           # Anthropic keys
     re.compile(r"\b(?:sk|gsk|AIza)[A-Za-z0-9_-]{20,}"),   # OpenAI / Groq / Google-style keys
+    re.compile(r"\bnvapi-[A-Za-z0-9_-]{20,}"),            # NVIDIA keys
 ]
 
 

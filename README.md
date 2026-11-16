@@ -14,7 +14,7 @@ Your PC does it, then answers you out loud.
 [![Telegram Bot](https://img.shields.io/badge/Telegram-bot-26A5E4?logo=telegram&logoColor=white)](https://core.telegram.org/bots)
 [![python-telegram-bot 22](https://img.shields.io/badge/python--telegram--bot-22.x-26A5E4)](https://python-telegram-bot.org/)
 [![AI: Groq](https://img.shields.io/badge/AI-Groq-F55036)](#1-get-running-in-5-minutes)
-[![Tests](https://img.shields.io/badge/tests-548%20passing-2EA44F)](#-development)
+[![Tests](https://img.shields.io/badge/tests-744%20passing-2EA44F)](#-development)
 [![License: MIT](https://img.shields.io/badge/license-MIT-yellow.svg)](LICENSE)
 
 [Get started](#1-get-running-in-5-minutes) · [Talk to Edith](#2-three-ways-to-talk-to-edith) · [Instant commands](#3-instant-commands-no-ai-needed) · [Macros](#6-teaching-edith-tasks-with-macros) · [Automations](#7-reminders-schedules-and-triggers) · [All commands](#8-every-slash-command) · [Safety](#9-safety-confirm-guardrails-and-your-own-rules) · [Troubleshooting](#12-troubleshooting)
@@ -49,7 +49,7 @@ Only **your** Telegram account can use it, and strangers get silence. Anything d
 <tr>
 <td valign="top">
 
-### ⚡ 52 actions, one registry
+### ⚡ 73 actions, one registry
 Every feature is a typed action. Slash commands, buttons, the AI and automations all call the **same** code.
 
 </td>
@@ -173,7 +173,7 @@ Anything Edith doesn't recognise instantly goes to the AI (next section), so you
 
 ## 4. Asking Edith anything
 
-For everything else, Edith's AI (Groq `openai/gpt-oss-120b`) works out which of her **52 actions** to use. Examples:
+For everything else, Edith's AI (Groq `openai/gpt-oss-120b`) works out which of her **73 actions** to use. Examples:
 
 - *"Which three programs are using the most memory?"*
 - *"Is my battery charging, and how much disk space do I have left?"*
@@ -182,21 +182,33 @@ For everything else, Edith's AI (Groq `openai/gpt-oss-120b`) works out which of 
 - *"What's my GPU temperature and fan speed?"*
 - *"Type 'on my way' into the window I have open"* → types on the PC (asks Confirm)
 - *"Run ipconfig"* → shell command (asks Confirm)
+- *"Search the web for the latest Python release and summarise it"* → web search + reads the page
+- *"What does the PDF invoice.pdf on my desktop say?"* → reads the file and answers
+- *"Remember my office Wi-Fi is called Acme-5G"* → saved for good; ask *"what's my office Wi-Fi?"* any time later
+- *"Install VLC"* → finds it with winget and installs it (asks Confirm)
+- *"Switch sound to my headphones"*, *"set brightness to 40"*, *"turn on dark mode"*, *"high performance mode"*
+- *"Minimize Chrome"*, *"show the desktop"*, *"play lofi beats on YouTube"*, *"what song is playing?"*
 
-**What Edith can reach (52 actions)**
+**What Edith can reach (73 actions)**
 
 | Area | Actions |
 |---|---|
 | System | status, GPU, processes, kill a process, network, open windows |
 | Power | lock, sleep, hibernate, restart, shutdown, log off, monitor off, abort |
-| Apps & web | open any installed app, list installed apps, open a URL |
-| Files | list folders, send a file, find files, make folders, move, delete (to Recycle Bin) |
+| Apps & software | open any installed app, list installed apps, search / install / uninstall software (winget) |
+| Web | open a URL, search the web, read a web page |
+| Files | list folders, send a file, **read a file** (text, code, Word, PDF), find files, make folders, move, delete (to Recycle Bin), print |
 | Shell | cmd and PowerShell commands, start a program, working directory |
-| Screen & input | screenshot, screen recording, webcam photo, clipboard, popup, type text, hotkeys, mouse |
-| Media | volume, mute, media keys, speak out loud |
-| Automation | reminders, scheduled jobs, triggers, macros, notifications |
+| Screen & input | screenshot, screen recording, webcam photo, clipboard, popup, Windows notification, type text, hotkeys, mouse |
+| Windows | minimize, maximize, restore or close a window, show the desktop |
+| PC settings | brightness, dark mode, Wi-Fi, sound output device, power plan, Bluetooth status |
+| Media | volume, mute, media keys, play something on YouTube/Spotify, what's playing, speak out loud |
+| Memory | remember a fact, recall notes, forget a note |
+| Automation | reminders, scheduled jobs (incl. weekdays/weekends), triggers, macros, notifications |
 
 **Conversation memory:** Edith remembers your last 12 exchanges, so follow-ups like *"and the GPU?"* work. That memory is cleared by `/forget` and when Edith restarts.
+
+**Long-term memory:** say *"remember …"* and it's saved to `data/notes.json`, kept across restarts, and given to the AI every time. *"What do you remember?"* lists notes; *"forget note 3"* deletes one. Your saved macros are also known to the AI, so *"do my morning routine"* runs the macro called `morning-routine` without saying "macro".
 
 **Personality:** `/persona` shows Edith's personality, `/persona you are a pirate` changes it, and `/persona reset` restores the default. Safety rules can't be changed by a persona.
 
@@ -257,6 +269,9 @@ Or just say *"remind me in 10 minutes to stretch"*.
 ```
 /at 22:00 power_shutdown
 /at 9:00 daily open_app brave; open_url https://mail.google.com
+/at weekdays 9:00 open_app outlook
+/at weekends 10:00 notify text=Relax
+/at mon,wed,fri 18:30 notify text=Gym
 ```
 
 **Triggers: act when something happens:** `/when <condition> [for 2m] [cooldown 15m] [steps]`
@@ -268,6 +283,11 @@ Or just say *"remind me in 10 minutes to stretch"*.
 /when idle>30m power_lock           → locks the PC after 30 idle minutes
 /when process chrome.exe starts
 /when process game.exe stops notify text=Game closed
+/when file *.pdf in Downloads       → tells you when a new PDF lands in Downloads
+/when network lost                  → tells you (once back online) that the internet dropped
+/when network back
+/when usb plugged                   → a USB stick was plugged in
+/when pc unlocked                   → someone unlocked the PC
 ```
 The default step is `notify`. A cooldown keeps alerts from spamming you.
 
@@ -341,6 +361,12 @@ The default step is `notify`. A cooldown keeps alerts from spamming you.
 **Confirm buttons, only when it matters:** Edith asks **✅ Confirm / ❌ Cancel** before anything a mistake would really hurt: shell commands, starting programs by path, deleting or moving files, closing apps, shutdown/restart/sleep/log off, typing, hotkeys, mouse clicks, the webcam, and saving macros or automations. That includes when the AI or a macro asks. Unanswered prompts expire after 2 minutes and count as Cancel.
 
 **No prompt for harmless things:** opening apps, locking the PC, turning the monitor off, moving or scrolling the mouse, and opening well-known websites (YouTube, Google, GitHub, Gmail, …). If the AI wants to open a link that **isn't** well known, it still asks, so text on your screen can't trick it into sending your data to a stranger's website.
+
+**New powers, same care:**
+- Installing or uninstalling software, connecting/disconnecting Wi-Fi (it could cut Edith off), closing a window and printing always ask.
+- Reading a web page from an unknown site asks, unless it came from Edith's own web search. Even well-known sites can't be given links that carry data in them (forms, redirect links).
+- Reading files that look like keys or passwords (`.ssh`, `.env`, `*.pem`, password files, …) asks first, and Edith's own settings, logs and data folder can't be read by the AI at all. API keys and the bot token are scrubbed from everything the AI sees.
+- If the AI read a web page, file or command output in the same request, saving a note to long-term memory asks first, so a page can't plant permanent instructions.
 
 **Hard blocks, even after Confirm:** Edith refuses shell commands that
 - format or wipe a disk, or delete a whole drive or Windows,
@@ -428,7 +454,7 @@ Start with **`Edith.exe doctor`**: it tests everything and says what to fix.
 ## 13. What Edith can't do (yet)
 
 - **Operate inside apps.** She can open WhatsApp but can't type into it or send a message to a contact. The same goes for clicking buttons inside other programs.
-- **Long-term memory.** She forgets conversations on restart, and *"remember that…"* isn't saved. Use macros for tasks you repeat.
+- **See the screen.** Screenshots go to you; the AI itself can't look at them.
 - **Run without the PC.** Edith runs on your PC, so if it sleeps or shuts down, she's offline. `Edith.exe autostart on` helps after a reboot.
 - **Unlimited free use.** Groq's free tier is rate-limited, while instant commands and slash commands are not.
 - **Other operating systems.** Windows only.
@@ -507,7 +533,7 @@ async def battery() -> ActionResult:
 ### 🧪 Development
 
 ```powershell
-.venv\Scripts\python -m pytest -q          # 548 tests, no network, no real OS actions
+.venv\Scripts\python -m pytest -q          # 744 tests, no network, no real OS actions
 .venv\Scripts\python -m bot.cli doctor     # environment check
 ```
 

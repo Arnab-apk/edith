@@ -83,10 +83,21 @@ def check(act: "Action", args: dict[str, Any]) -> str | None:
 # but harmless and instantly reversible, so they run without a prompt by default.
 DEFAULT_NO_CONFIRM = frozenset({"power_lock", "power_monitor_off"})
 SAFE_MOUSE_MODES = frozenset({"move", "move_by", "scroll"})  # clicks still confirm
+# Harmless modes of otherwise-dangerous actions: action name -> (argument, modes that skip Confirm).
+SAFE_MODES: dict[str, tuple[str, frozenset[str]]] = {
+    "mouse_control": ("action", SAFE_MOUSE_MODES),
+    "window_control": ("action", frozenset({"minimize", "maximize", "restore"})),  # close still confirms
+    "wifi": ("action", frozenset({"status", "list"})),
+}
+# Modes that always ask, even with EDITH_SKIP_CONFIRM: they can cut the bot off the internet.
+LOCKOUT_MODES: dict[str, tuple[str, frozenset[str]]] = {
+    "wifi": ("action", frozenset({"connect", "disconnect"})),
+}
 # Never skippable, whatever the settings say: these can run code, destroy data or create
 # unattended automations.
 ALWAYS_CONFIRM = frozenset({"shell_cmd", "shell_ps", "run_program", "delete_path", "move_path",
-                            "save_macro", "run_macro", "schedule_action", "create_trigger"})
+                            "save_macro", "run_macro", "schedule_action", "create_trigger",
+                            "install_app", "uninstall_app"})
 
 
 def skip_confirm_set() -> set[str]:
@@ -103,8 +114,14 @@ def needs_confirm(act: "Action", args: dict[str, Any] | None = None) -> bool:
         return False
     if act.name in ALWAYS_CONFIRM:
         return True
-    if act.name == "mouse_control" and str((args or {}).get("action", "")).lower() in SAFE_MOUSE_MODES:
-        return False
+    if act.name in LOCKOUT_MODES:
+        arg, modes = LOCKOUT_MODES[act.name]
+        if str((args or {}).get(arg, "")).strip().lower() in modes:
+            return True
+    if act.name in SAFE_MODES:
+        arg, modes = SAFE_MODES[act.name]
+        if str((args or {}).get(arg, "")).strip().lower() in modes:
+            return False
     if _skip_all():
         return False
     return act.name not in skip_confirm_set()
