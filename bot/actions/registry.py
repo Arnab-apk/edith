@@ -96,7 +96,8 @@ _EVER: dict[str, Action] = {}  # every real action ever registered (survives REG
 
 # Modules under bot/actions/ that load_all() imports. Missing ones are skipped with a warning.
 ACTION_MODULES = ["system", "power", "shell", "files", "desktop", "media", "apps", "automation",
-                  "windows", "pc_settings", "reader", "software", "web", "notes", "everyday", "devices"]
+                  "windows", "pc_settings", "reader", "software", "web", "notes", "everyday", "devices",
+                  "screen_text"]
 
 _NAME_RE = re.compile(r"^[a-z][a-z0-9_]{0,63}$")
 

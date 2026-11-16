@@ -51,7 +51,8 @@ def _args(update: Update) -> str:
 
 async def _create(update: Update, context: ContextTypes.DEFAULT_TYPE, plan: auto.Plan) -> None:
     chat_id = update.effective_chat.id
-    if plan.dangerous and not await ask_confirm(context.bot, chat_id, plan.summary()):
+    act = "create_trigger" if plan.kind == "trigger" else "schedule_action"
+    if plan.dangerous and not await ask_confirm(context.bot, chat_id, plan.summary(), action=act):
         await reply_text(update, "Not created.")
         return
     task = await scheduler.commit(plan, chat_id)
@@ -142,7 +143,7 @@ async def cmd_macro(update: Update, context: ContextTypes.DEFAULT_TYPE) -> None:
         if sub == "save":
             name, plan = macros.plan_macro(rest)
             if plan.dangerous and not await ask_confirm(context.bot, chat_id, plan.summary()
-                                                         + "\n(Running it will ask for confirmation again.)"):
+                                                         + "\n(Running it will ask for confirmation again.)", action="save_macro"):
                 await reply_text(update, "Not saved.")
                 return
             await macros.save(name, plan)

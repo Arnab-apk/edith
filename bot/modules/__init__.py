@@ -13,4 +13,4 @@ Rules:
   * Handlers do NOT re-implement logic: they parse args and call bot.actions (run_action /
     bot.confirm.confirm_and_run, which confirms dangerous actions), then bot.utils.send_result.
 """
-MODULE_NAMES = ["system", "power", "shell", "files", "desktop", "media", "assistant", "automation"]
+MODULE_NAMES = ["system", "power", "shell", "files", "desktop", "media", "assistant", "automation", "ops"]

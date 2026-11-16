@@ -11,3 +11,5 @@ os.environ["ALLOWED_USER_IDS"] = "111111111"
 for _k in [k for k in os.environ if k.startswith(("LLM_", "CLAUDE_", "ANTHROPIC_", "WHISPER_", "TTS_", "EDITH_", "AUTOMATION_", "GROQ_", "STT_", "NVIDIA_")) and k not in ("EDITH_SKIP_DOTENV", "EDITH_LOG_DIR")]:
     del os.environ[_k]
 sys.path.insert(0, str(Path(__file__).resolve().parent.parent))
+# never read the owner's real lockdown flag or notes
+os.environ["EDITH_LOCKDOWN_FILE"] = os.path.join(tempfile.mkdtemp(prefix="edith-test-lock-"), "lockdown.json")

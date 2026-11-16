@@ -91,3 +91,28 @@ def test_summary_mentions_state(monkeypatch):
     monkeypatch.setenv("EDITH_DISABLED_ACTIONS", "webcam_photo")
     s = policy.summary()
     assert "safe mode ON" in s and "webcam_photo" in s and "risky shell blocked" in s
+
+
+async def test_lockdown_blocks_all_but_harmless(actions):
+    policy.set_lockdown(True, reason="test")
+    try:
+        assert policy.lockdown_info()["reason"] == "test"
+        res = await r.run_action("shell_cmd", command="dir")
+        assert not res.ok and "lockdown" in res.text and "control lockdown off" in res.text
+        assert (await r.run_action("power_lock")).ok        # locking still works
+        assert "LOCKDOWN ON" in policy.summary()
+    finally:
+        policy.set_lockdown(False)
+    assert policy.lockdown_info() is None
+    assert (await r.run_action("shell_cmd", command="dir")).ok
+    assert actions == ["lock", "dir"]
+
+
+def test_unreadable_lockdown_file_fails_closed():
+    f = policy.lockdown_file()
+    f.parent.mkdir(parents=True, exist_ok=True)
+    f.write_text("{garbage", encoding="utf-8")
+    try:
+        assert policy.lockdown_info() is not None
+    finally:
+        policy.set_lockdown(False)

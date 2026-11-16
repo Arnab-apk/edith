@@ -64,6 +64,11 @@ def _fmt_time(ts: float) -> str:
     return datetime.fromtimestamp(ts).strftime("%Y-%m-%d %H:%M")
 
 
+def _edith_private(p: Path) -> bool:
+    from .reader import _edith_private as private
+    return private(p)
+
+
 def _is_drive_root(p: Path) -> bool:
     return p.parent == p
 
@@ -123,6 +128,9 @@ def _get_file(chat_id: int, path: str) -> ActionResult:
     p = resolve_path(chat_id, path)
     if not p.exists():
         return ActionResult(text=f"Not found: {p}", ok=False)
+    if _edith_private(p):
+        return ActionResult(text="Edith's own settings, logs and data can't be sent (they hold the bot token, "
+                                 "API keys and PIN hash).", ok=False)
     if p.is_file():
         size = p.stat().st_size
         if size > MAX_SEND_BYTES:
@@ -147,7 +155,7 @@ def _zip_dir(p: Path) -> ActionResult:
     try:
         with open(tmp, "wb") as fh, zipfile.ZipFile(fh, "w", zipfile.ZIP_DEFLATED, compresslevel=6) as zf:
             for e in walk_entries(p, deadline):
-                if _is_link(e):
+                if _is_link(e) or _edith_private(Path(e.path)):
                     continue
                 try:
                     if e.is_dir(follow_symlinks=False):

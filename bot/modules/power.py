@@ -16,6 +16,7 @@ COMMANDS = [
     ("power", "Power menu: lock, sleep, hibernate, restart, shutdown, logoff, abort, monitor off"),
     ("lock", "Lock the PC"),
     ("abort", "Cancel a pending shutdown/restart"),
+    ("lockdown", "Emergency: lock the PC and block Edith until unlocked at the PC"),
 ]
 
 # key -> (action name, takes delay?, confirm summary)
@@ -81,6 +82,20 @@ async def cmd_lock(update: Update, context: ContextTypes.DEFAULT_TYPE) -> None:
 
 
 @owner_only
+async def cmd_lockdown(update: Update, context: ContextTypes.DEFAULT_TYPE) -> None:
+    """No Confirm on purpose: it only ever takes power away, and speed matters if the phone is stolen."""
+    from ..actions import policy
+    from ..actions.registry import run_action
+
+    policy.set_lockdown(True, reason="/lockdown from Telegram")
+    locked = await run_action("power_lock")
+    await update.effective_message.reply_text(
+        "🚨 Lockdown is ON. " + ("The PC is locked. " if locked.ok else "")
+        + "Edith now refuses everything except status, volume and lock. "
+        "To lift it, run at the PC: control lockdown off")
+
+
+@owner_only
 async def cmd_abort(update: Update, context: ContextTypes.DEFAULT_TYPE) -> None:
     await run_power(update, context, "abort")
 
@@ -98,4 +113,5 @@ def register(app: Application) -> None:
     app.add_handler(CommandHandler("power", cmd_power))
     app.add_handler(CommandHandler("lock", cmd_lock))
     app.add_handler(CommandHandler("abort", cmd_abort))
+    app.add_handler(CommandHandler("lockdown", cmd_lockdown))
     app.add_handler(CallbackQueryHandler(on_button, pattern=r"^power:"))

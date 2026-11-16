@@ -12,8 +12,12 @@ Settings (.env or `control config set`):
 """
 from __future__ import annotations
 
+import json
+import logging
 import os
 import re
+import time
+from pathlib import Path
 from typing import TYPE_CHECKING, Any
 
 if TYPE_CHECKING:
@@ -61,8 +65,47 @@ def risky_shell_reason(text: str) -> str | None:
     return None
 
 
+# ---------------------------------------------------------------- lockdown
+# /lockdown (or 3 wrong PINs) freezes Edith: only these harmless actions still run, so a stolen Telegram
+# account can't take files, screenshots or control. It can only be lifted at the PC: `control lockdown off`.
+LOCKDOWN_ALLOWED = frozenset({"power_lock", "power_monitor_off", "power_abort", "system_status", "notify",
+                              "volume", "mute", "media_key"})
+
+
+def lockdown_file() -> Path:
+    from ..config import ROOT
+    return Path(os.getenv("EDITH_LOCKDOWN_FILE") or ROOT / "data" / "lockdown.json")
+
+
+def lockdown_info() -> dict[str, Any] | None:
+    """{'since': ..., 'reason': ...} while locked down, else None."""
+    try:
+        data = json.loads(lockdown_file().read_text(encoding="utf-8"))
+        return data if isinstance(data, dict) else {"reason": "unknown"}
+    except FileNotFoundError:
+        return None
+    except (OSError, ValueError):
+        return {"reason": "unreadable lockdown file"}  # fail closed
+
+
+def set_lockdown(on: bool, reason: str = "") -> None:
+    f = lockdown_file()
+    if on:
+        f.parent.mkdir(parents=True, exist_ok=True)
+        f.write_text(json.dumps({"since": time.strftime("%Y-%m-%d %H:%M:%S"), "reason": reason or "owner"}),
+                     encoding="utf-8")
+        logging.getLogger("audit").warning("LOCKDOWN ON (%s)", reason or "owner")
+    else:
+        f.unlink(missing_ok=True)
+        logging.getLogger("audit").warning("LOCKDOWN OFF")
+
+
 def check(act: "Action", args: dict[str, Any]) -> str | None:
     """Return a human-readable reason when `act` must not run, else None."""
+    lock = lockdown_info()
+    if lock is not None and act.name not in LOCKDOWN_ALLOWED:
+        return (f"Edith is in lockdown ({lock.get('reason', '')}), so {act.name} is blocked. "
+                "It can only be lifted at the PC: control lockdown off")
     if act.dangerous and _on("EDITH_SAFE_MODE"):
         return (f"Safe mode is on, so {act.name} is blocked. "
                 "Turn it off with: control config set EDITH_SAFE_MODE 0")
@@ -110,6 +153,9 @@ def skip_confirm_set() -> set[str]:
 
 def needs_confirm(act: "Action", args: dict[str, Any] | None = None) -> bool:
     """True when the owner must tap Confirm before `act` runs (slash commands and AI alike)."""
+    from ..pin import pin_required
+    if pin_required(act.name):
+        return True
     if not act.dangerous:
         return False
     if act.name in ALWAYS_CONFIRM:
@@ -134,7 +180,8 @@ def _skip_all() -> bool:
 
 def summary() -> str:
     """One-line description of the active guardrails (for doctor and /status-style output)."""
-    parts = ["safe mode ON" if _on("EDITH_SAFE_MODE") else "safe mode off"]
+    parts = ["LOCKDOWN ON" if lockdown_info() else "no lockdown"]
+    parts.append("safe mode ON" if _on("EDITH_SAFE_MODE") else "safe mode off")
     off = disabled_entries()
     parts.append(f"{len(off)} disabled ({', '.join(sorted(off))})" if off else "nothing disabled")
     parts.append("risky shell ALLOWED" if _on("EDITH_ALLOW_RISKY_SHELL") else "risky shell blocked")

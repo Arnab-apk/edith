@@ -181,6 +181,10 @@ async def on_upload(update: Update, context: ContextTypes.DEFAULT_TYPE) -> None:
         await msg.reply_text(f"⚠️ {name} is {human_bytes(size)}; Telegram bots can only download files up to "
                              f"{human_bytes(TG_DOWNLOAD_LIMIT)}.")
         return
+    from ..actions import policy
+    if policy.lockdown_info() is not None:
+        await msg.reply_text("🚨 Edith is in lockdown, so uploads are refused. Lift it at the PC: control lockdown off")
+        return
     dest = await run_blocking(reserve_upload_path, name)
     try:
         tg_file = await tg_obj.get_file()

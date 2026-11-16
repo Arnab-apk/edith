@@ -130,7 +130,7 @@ def test_callback_prefixes_distinct_and_all_buttons_routed(app):
     assert len(prefixes) == len(set(prefixes)), prefixes
     assert "confirm" in prefixes
     assert set(MODULE_NAMES) - {"system", "power", "shell", "files", "desktop", "media", "assistant",
-                                "automation"} == set()
+                                "automation", "ops"} == set()
     # every callback_data literal in the source must be routed to exactly one handler
     used = set()
     for py in (ROOT / "bot").rglob("*.py"):
@@ -482,7 +482,7 @@ def test_wifi_lockout_modes_always_confirm(monkeypatch):
 async def test_remember_after_untrusted_text_asks(monkeypatch):
     asked = []
 
-    async def fake_confirm(bot, chat_id, summary):
+    async def fake_confirm(bot, chat_id, summary, **kw):
         asked.append(summary)
         return False
     monkeypatch.setattr(brain, "ask_confirm", fake_confirm)

@@ -63,7 +63,7 @@ async def run_macro(bot: Any, chat_id: int, name: str, *, confirm: bool = True) 
         if not confirm:
             return ActionResult(text=f"Macro {name!r} has dangerous steps and needs confirmation.", ok=False)
         from ..confirm import ask_confirm  # lazy: keeps telegram out of import time
-        if not await ask_confirm(bot, chat_id, run_summary(name, steps)):
+        if not await ask_confirm(bot, chat_id, run_summary(name, steps), action="run_macro"):
             return ActionResult(text=f"Macro {name!r} cancelled.", ok=False)
     results = await run_steps(bot, chat_id, steps, header=f"▶️ Macro '{name}' ({len(steps)} steps)",
                               approved_dangerous=dangerous)

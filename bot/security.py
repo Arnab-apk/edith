@@ -64,6 +64,23 @@ def is_allowed(update: Update) -> bool:
     return chat is None or chat.type == "private"
 
 
+LOCKDOWN_COMMANDS = frozenset({"start", "help", "status", "lock", "lockdown", "vol", "volume", "mute"})
+
+
+def _allowed_in_lockdown(update: Update) -> bool:
+    """While locked down only a few harmless slash commands get through (no chat, files, callbacks...)."""
+    from .actions.policy import lockdown_info
+    if lockdown_info() is None:
+        return True
+    if update.callback_query:
+        return False
+    text = (update.effective_message.text or "") if update.effective_message else ""
+    if not text.startswith("/"):
+        return False
+    cmd = text[1:].split(None, 1)[0].split("@", 1)[0].lower() if len(text) > 1 else ""
+    return cmd in LOCKDOWN_COMMANDS
+
+
 def owner_only(func):
     @functools.wraps(func)
     async def wrapper(update: Update, context: ContextTypes.DEFAULT_TYPE, *args, **kwargs):
@@ -78,7 +95,18 @@ def owner_only(func):
             if update.callback_query:
                 await update.callback_query.answer()
             return None
+        if isinstance(what, str) and what.startswith("confirm:"):
+            what = "confirm:<button>"  # PIN keypad digits must never reach a log
         audit.info("OK user=%s action=%r", user.id, what)
+        if not _allowed_in_lockdown(update):
+            audit.warning("LOCKDOWN refused %r", what)
+            if update.callback_query:
+                await update.callback_query.answer("Edith is in lockdown")
+            elif update.effective_message:
+                await update.effective_message.reply_text(
+                    "🚨 Edith is in lockdown. Only /status, /lock, /vol, /mute and /lockdown work. "
+                    "Lift it at the PC: control lockdown off")
+            return None
         return await func(update, context, *args, **kwargs)
 
     return wrapper

@@ -316,15 +316,113 @@ def probe_llm(env: dict[str, str], timeout: float = 45.0) -> tuple[bool, str]:
     return True, f"{model} answered in {time.monotonic() - t0:.1f}s @ {base}"
 
 
+# ------------------------------------------------------------------ start + watchdog
+# `control start` is a small supervisor: it runs the bot as a child process (same console, EDITH_CHILD=1)
+# and starts it again when it asks to (/restart -> exit 3) or crashes. Only the child holds the
+# single-instance lock, so a restarted child can take it again.
+EXIT_RESTART = 3          # child asks for a restart (bot.modules.ops /restart)
+EXIT_ALREADY_RUNNING = 4  # another Edith holds the lock: retrying can't help
+STOP_CODES = {0, 130, 0xC000013A, -2}  # clean exit, Ctrl+C (cli / Windows STATUS_CONTROL_C_EXIT / SIGINT)
+CRASH_BACKOFF = (5, 15, 60)  # seconds before restart after the 1st, 2nd, 3rd+ crash
+MAX_CRASHES = 5              # ... within CRASH_WINDOW seconds -> give up
+CRASH_WINDOW = 600
+WATCHDOG_LOG = ROOT / "logs" / "bot.log"
+
+
+def _watchdog_log(message: str, level: str = "WARNING") -> None:
+    """Append one line to logs/bot.log (same format as the bot's own lines). Opened and closed per
+    line so it never blocks the bot's log rotation."""
+    try:
+        WATCHDOG_LOG.parent.mkdir(parents=True, exist_ok=True)
+        stamp = time.strftime("%Y-%m-%d %H:%M:%S") + f",{int(time.time() * 1000) % 1000:03d}"
+        with open(WATCHDOG_LOG, "a", encoding="utf-8") as f:
+            f.write(f"{stamp} {level} watchdog: {message}\n")
+    except OSError:
+        pass
+
+
+def _spawn_child() -> subprocess.Popen:
+    return subprocess.Popen([sys.executable, "-m", "bot.cli", "start"], cwd=ROOT,
+                            env={**os.environ, "EDITH_CHILD": "1"})
+
+
+def _wait(proc) -> int:
+    """Wait for the child, waking every second so Ctrl+C reaches the supervisor promptly on Windows."""
+    while True:
+        try:
+            return proc.wait(timeout=1)
+        except subprocess.TimeoutExpired:
+            continue
+
+
+def _stop_child(proc, grace: float = 20.0) -> None:
+    """Ctrl+C went to the whole console, so the child is already shutting down: give it time,
+    then terminate it if it hangs (or on a second Ctrl+C)."""
+    try:
+        proc.wait(timeout=grace)
+    except (subprocess.TimeoutExpired, KeyboardInterrupt):
+        proc.terminate()
+        try:
+            proc.wait(timeout=5)
+        except (subprocess.TimeoutExpired, KeyboardInterrupt):
+            proc.kill()
+
+
+def supervise(spawn=_spawn_child, sleep=time.sleep, clock=time.monotonic) -> int:
+    """Run the bot child until it stops on purpose; restart it on request or after a crash."""
+    crashes: list[float] = []
+    while True:
+        proc = spawn()
+        try:
+            rc = _wait(proc)
+        except KeyboardInterrupt:
+            _stop_child(proc)
+            con.print(f"\n{APP_NAME} stopped.")
+            return 0
+        if rc == EXIT_RESTART:
+            _watchdog_log("restart requested - starting Edith again", "INFO")
+            con.print(f"[cyan]↻ Restarting {APP_NAME}…[/]")
+            continue
+        if rc in STOP_CODES:
+            return 0
+        if rc == EXIT_ALREADY_RUNNING:
+            return 1  # the child already explained
+        now = clock()
+        crashes = [t for t in crashes if now - t < CRASH_WINDOW] + [now]
+        if len(crashes) >= MAX_CRASHES:
+            why = (f"Edith crashed {len(crashes)} times in {CRASH_WINDOW // 60} minutes (last exit code {rc}) - "
+                   "giving up so it doesn't loop forever. See logs/bot.log, fix the problem, then start it again.")
+            _watchdog_log(why, "ERROR")
+            con.print(f"[red]✗ {why}[/]")
+            return 1
+        delay = CRASH_BACKOFF[min(len(crashes), len(CRASH_BACKOFF)) - 1]
+        _watchdog_log(f"Edith stopped unexpectedly (exit code {rc}); restarting in {delay}s "
+                      f"(crash {len(crashes)} of {MAX_CRASHES} allowed in {CRASH_WINDOW // 60} min)")
+        con.print(f"[yellow]! {APP_NAME} stopped unexpectedly (exit code {rc}). Restarting in {delay}s…[/] "
+                  "(Ctrl+C to stop)")
+        try:
+            sleep(delay)
+        except KeyboardInterrupt:
+            con.print(f"\n{APP_NAME} stopped.")
+            return 0
+
+
 def cmd_start(_: argparse.Namespace | None = None) -> int:
     env = read_env()
     if not env.get("BOT_TOKEN") or not env.get("ALLOWED_USER_IDS"):
         con.print("[red]Not configured yet.[/] Running setup first…")
         return cmd_setup()
+    if not os.environ.get("EDITH_CHILD"):
+        return supervise()
+    return _run_bot(env)
+
+
+def _run_bot(env: dict[str, str]) -> int:
+    """The bot process itself (EDITH_CHILD=1): lock, local AI, banner, polling."""
     if not acquire_single_instance():
         con.print("[red]Edith is already running[/] in another window. Close that one first "
                   "(two copies fight over Telegram messages).")
-        return 1
+        return EXIT_ALREADY_RUNNING
     if env.get("LLM_PROVIDER") == "openai_compat" and is_local_ollama(env.get("LLM_BASE_URL", "")):
         with con.status("Starting the local AI model (Ollama)…"):
             problem = ensure_ollama(env.get("LLM_MODEL", ""))
@@ -333,13 +431,19 @@ def cmd_start(_: argparse.Namespace | None = None) -> int:
         else:
             con.print(f"[green]✓[/] Local AI ready: {env.get('LLM_MODEL')}")
     con.print(Panel.fit(f"[bold green]{APP_NAME} is running[/]\nOpen your bot on your phone and send /help.\n"
-                        "Press Ctrl+C or close this window to stop.", border_style="green"))
+                        "Restarts by itself if it crashes. Press Ctrl+C or close this window to stop.",
+                        border_style="green"))
     from . import main as bot_main  # imported late: loads config from .env
     try:
         bot_main.main()
     except KeyboardInterrupt:
-        pass
-    return 0
+        return 0
+    except Exception:  # logged to bot.log (traceback included); the watchdog restarts us
+        import logging
+        logging.getLogger("controller").exception("Edith crashed")
+        return 1
+    from .modules import ops
+    return EXIT_RESTART if ops.restart_requested() else 0
 
 
 def _row(t: Table, ok: bool | None, what: str, detail: str = "") -> None:
@@ -406,7 +510,8 @@ def cmd_doctor(_: argparse.Namespace | None = None) -> int:
         except BaseException as e:  # config may sys.exit
             _row(t, False, "Actions", str(e))
     from .actions import policy
-    _row(t, True, "Guardrails", policy.summary())
+    from . import pin as _pin
+    _row(t, True, "Guardrails", f"{policy.summary()}, {_pin.pin_status()}")
     auto = _task_exists()
     _row(t, None if not auto else True, "Autostart", "on" if auto else "off")
     con.print(t)
@@ -442,18 +547,48 @@ def cmd_autostart(ns: argparse.Namespace) -> int:
         con.print("Autostart is " + ("[green]on[/]" if _task_exists() else "off"))
         return 0
     if ns.state == "off":
-        r = subprocess.run(["schtasks", "/Delete", "/F", "/TN", TASK_NAME], capture_output=True, text=True)
-        con.print("[green]✓ autostart removed[/]" if r.returncode == 0 else "Autostart was not on.")
+        if not _task_exists():
+            con.print("Autostart was not on.")
+            return 0
+        r = _ps(f"Unregister-ScheduledTask -TaskName {_q(TASK_NAME)} -Confirm:$false")
+        con.print("[green]✓ autostart removed[/]" if r.returncode == 0
+                  else f"[red]Could not remove the task:[/] {r.stderr.strip()}")
+        return r.returncode
+    r = _ps(autostart_script(ROOT / "start.bat", ROOT))
+    if r.returncode == 0 and _task_exists():
+        con.print(f"[green]✓[/] '{TASK_NAME}' will start 30 s after you sign in (visible in Task Scheduler; "
+                  "remove with: control autostart off)")
         return 0
-    start = ROOT / "start.bat"
-    r = subprocess.run(["schtasks", "/Create", "/F", "/TN", TASK_NAME, "/SC", "ONLOGON", "/RL", "LIMITED",
-                        "/TR", f'"{start}"'], capture_output=True, text=True)
-    if r.returncode == 0:
-        con.print(f"[green]✓[/] '{TASK_NAME}' will start at logon (visible in Task Scheduler; "
-                  "remove with: control.bat autostart off)")
-    else:
-        con.print(f"[red]Could not create task:[/] {r.stderr.strip() or r.stdout.strip()}")
-    return r.returncode
+    con.print(f"[red]Could not create the task:[/] {(r.stderr or r.stdout).strip()[-400:]}")
+    return 1
+
+
+def _q(s: object) -> str:
+    """PowerShell single-quoted literal."""
+    return "'" + re.sub("(['\u2018\u2019\u201a\u201b])", r"\1\1", str(s)) + "'"
+
+
+def _ps(script: str) -> subprocess.CompletedProcess:
+    return subprocess.run(["powershell", "-NoProfile", "-NonInteractive", "-Command",
+                           "$ErrorActionPreference='Stop'; " + script],
+                          capture_output=True, text=True, creationflags=getattr(subprocess, "CREATE_NO_WINDOW", 0))
+
+
+def autostart_script(start: Path, workdir: Path) -> str:
+    """Register a per-user logon task. Unlike `schtasks /SC ONLOGON` this needs no admin rights.
+    It also runs on battery, is never killed after 72 h, and waits 30 s so the network is up."""
+    return "; ".join([
+        "$u = [System.Security.Principal.WindowsIdentity]::GetCurrent().Name",
+        f"$a = New-ScheduledTaskAction -Execute {_q(start)} -WorkingDirectory {_q(workdir)}",
+        "$t = New-ScheduledTaskTrigger -AtLogOn -User $u",
+        "$t.Delay = 'PT30S'",
+        "$s = New-ScheduledTaskSettingsSet -AllowStartIfOnBatteries -DontStopIfGoingOnBatteries "
+        "-ExecutionTimeLimit ([TimeSpan]::Zero) -StartWhenAvailable -MultipleInstances IgnoreNew",
+        "$p = New-ScheduledTaskPrincipal -UserId $u -LogonType Interactive -RunLevel Limited",
+        f"Register-ScheduledTask -TaskName {_q(TASK_NAME)} -Action $a -Trigger $t -Settings $s -Principal $p "
+        f"-Description {_q('Starts Edith (Telegram PC control) when you sign in. Remove: control autostart off')} "
+        "-Force | Out-Null",
+    ])
 
 
 def cmd_logs(ns: argparse.Namespace) -> int:
@@ -463,6 +598,48 @@ def cmd_logs(ns: argparse.Namespace) -> int:
         return 0
     lines = path.read_text(encoding="utf-8", errors="replace").splitlines()[-ns.n:]
     con.print("\n".join(lines), markup=False, highlight=False)
+    return 0
+
+
+def cmd_pin(ns: argparse.Namespace) -> int:
+    from . import pin
+    if ns.state == "status":
+        os.environ["EDITH_PIN_HASH"] = read_env().get("EDITH_PIN_HASH", "")
+        con.print(pin.pin_status())
+        return 0
+    if ns.state == "off":
+        write_env({"EDITH_PIN_HASH": ""})
+        con.print("[green]✓[/] PIN removed. Restart Edith (or send /restart) to apply.")
+        return 0
+    import getpass
+    first = getpass.getpass("New PIN (4-8 digits, hidden): ").strip()
+    if getpass.getpass("Repeat the PIN: ").strip() != first:
+        con.print("[red]The PINs don't match.[/] Nothing changed.")
+        return 1
+    try:
+        value = pin.make_pin_hash(first)
+    except ValueError as e:
+        con.print(f"[red]{e}[/]")
+        return 1
+    write_env({"EDITH_PIN_HASH": value})
+    con.print("[green]✓[/] PIN set (only a salted hash is stored). Shell, installs, deleting, automations and "
+              "shutdown/restart now need it on a keypad in Telegram. Restart Edith (or send /restart) to apply.")
+    return 0
+
+
+def cmd_lockdown(ns: argparse.Namespace) -> int:
+    from .actions import policy
+    info = policy.lockdown_info()
+    if ns.state == "status":
+        con.print(f"[red]LOCKDOWN ON[/] since {info.get('since', '?')} ({info.get('reason', '')})" if info
+                  else "No lockdown.")
+        return 0
+    if ns.state == "on":
+        policy.set_lockdown(True, reason="turned on at the PC")
+        con.print("[red]Lockdown ON.[/] Edith refuses everything except status, volume and lock.")
+        return 0
+    policy.set_lockdown(False)
+    con.print("[green]✓ Lockdown lifted.[/]" if info else "There was no lockdown.")
     return 0
 
 
@@ -495,7 +672,7 @@ def build_parser() -> argparse.ArgumentParser:
     p = argparse.ArgumentParser(prog="control", description=f"{APP_NAME} control panel")
     sub = p.add_subparsers(dest="cmd")
     sub.add_parser("setup", help="credentials wizard").set_defaults(fn=cmd_setup)
-    sub.add_parser("start", help="run the bot").set_defaults(fn=cmd_start)
+    sub.add_parser("start", help="run the bot (restarts it after a crash or /restart)").set_defaults(fn=cmd_start)
     sub.add_parser("doctor", help="check configuration").set_defaults(fn=cmd_doctor)
     c = sub.add_parser("config", help="show or change settings")
     c.add_argument("action", choices=["show", "set"])
@@ -509,6 +686,12 @@ def build_parser() -> argparse.ArgumentParser:
     lg.add_argument("--audit", action="store_true")
     lg.add_argument("-n", type=int, default=40)
     lg.set_defaults(fn=cmd_logs)
+    pn = sub.add_parser("pin", help="PIN for the riskiest actions (typed on a keypad in Telegram)")
+    pn.add_argument("state", choices=["set", "off", "status"])
+    pn.set_defaults(fn=cmd_pin)
+    ld = sub.add_parser("lockdown", help="emergency lockdown: block Edith until turned off here")
+    ld.add_argument("state", choices=["on", "off", "status"])
+    ld.set_defaults(fn=cmd_lockdown)
     return p
 
 

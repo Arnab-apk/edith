@@ -275,7 +275,8 @@ def _secret_path(args: dict[str, Any]) -> bool:
 # Tools whose output is text from outside (files, web, windows, clipboard, commands). After one of these
 # ran in a turn, `remember` asks first, so a page or file can't plant a permanent note in the prompt.
 UNTRUSTED_OUTPUT = frozenset({"read_file", "read_webpage", "web_search", "clipboard_get", "list_windows",
-                              "list_dir", "find_files", "shell_cmd", "shell_ps", "list_apps", "search_software"})
+                              "list_dir", "find_files", "shell_cmd", "shell_ps", "list_apps", "search_software",
+                              "read_screen_text", "media_info"})
 
 
 def _is_search_result(url: str) -> bool:
@@ -382,6 +383,7 @@ TOOL_KEYWORDS: dict[str, tuple[str, ...]] = {
     "audio_output": ("headphones", "speakers", "headset", "output", "audio", "sound", "device", "tv"),
     "energy_plan": ("power", "plan", "performance", "saver", "battery", "balanced", "energy"),
     "bluetooth": ("bluetooth", "paired", "earbuds", "airpods"),
+    "read_screen_text": ("screen", "says", "error", "dialog", "popup", "message", "read", "see", "look"),
 }
 CORE_TOOLS = ("system_status", "procs", "screenshot", "volume", "open_url", "run_program",
               "create_reminder", "list_windows")
@@ -527,7 +529,7 @@ async def execute_tool(bot, chat_id: int, name: str, args: Any, reply: BrainRepl
     if tainted or needs_confirm(name, args):
         await _report(progress, f"Waiting for your confirmation: {name}")
         try:
-            ok = await ask_confirm(bot, chat_id, f"Edith wants to run: {summary}")
+            ok = await ask_confirm(bot, chat_id, f"Edith wants to run: {summary}", action=name)
         except Exception as e:  # noqa: BLE001 - e.g. Telegram send failed: treat as not confirmed
             log.exception("confirmation prompt failed for %s", summary)
             return f"Could not ask the owner for confirmation ({type(e).__name__}); the action was NOT run.", True

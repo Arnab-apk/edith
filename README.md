@@ -14,7 +14,7 @@ Your PC does it, then answers you out loud.
 [![Telegram Bot](https://img.shields.io/badge/Telegram-bot-26A5E4?logo=telegram&logoColor=white)](https://core.telegram.org/bots)
 [![python-telegram-bot 22](https://img.shields.io/badge/python--telegram--bot-22.x-26A5E4)](https://python-telegram-bot.org/)
 [![AI: Groq](https://img.shields.io/badge/AI-Groq-F55036)](#1-get-running-in-5-minutes)
-[![Tests](https://img.shields.io/badge/tests-744%20passing-2EA44F)](#-development)
+[![Tests](https://img.shields.io/badge/tests-836%20passing-2EA44F)](#-development)
 [![License: MIT](https://img.shields.io/badge/license-MIT-yellow.svg)](LICENSE)
 
 [Get started](#1-get-running-in-5-minutes) · [Talk to Edith](#2-three-ways-to-talk-to-edith) · [Instant commands](#3-instant-commands-no-ai-needed) · [Macros](#6-teaching-edith-tasks-with-macros) · [Automations](#7-reminders-schedules-and-triggers) · [All commands](#8-every-slash-command) · [Safety](#9-safety-confirm-guardrails-and-your-own-rules) · [Troubleshooting](#12-troubleshooting)
@@ -49,7 +49,7 @@ Only **your** Telegram account can use it, and strangers get silence. Anything d
 <tr>
 <td valign="top">
 
-### ⚡ 73 actions, one registry
+### ⚡ 74 actions, one registry
 Every feature is a typed action. Slash commands, buttons, the AI and automations all call the **same** code.
 
 </td>
@@ -173,7 +173,7 @@ Anything Edith doesn't recognise instantly goes to the AI (next section), so you
 
 ## 4. Asking Edith anything
 
-For everything else, Edith's AI (Groq `openai/gpt-oss-120b`) works out which of her **73 actions** to use. Examples:
+For everything else, Edith's AI (Groq `openai/gpt-oss-120b`) works out which of her **74 actions** to use. Examples:
 
 - *"Which three programs are using the most memory?"*
 - *"Is my battery charging, and how much disk space do I have left?"*
@@ -189,7 +189,7 @@ For everything else, Edith's AI (Groq `openai/gpt-oss-120b`) works out which of 
 - *"Switch sound to my headphones"*, *"set brightness to 40"*, *"turn on dark mode"*, *"high performance mode"*
 - *"Minimize Chrome"*, *"show the desktop"*, *"play lofi beats on YouTube"*, *"what song is playing?"*
 
-**What Edith can reach (73 actions)**
+**What Edith can reach (74 actions)**
 
 | Area | Actions |
 |---|---|
@@ -199,7 +199,7 @@ For everything else, Edith's AI (Groq `openai/gpt-oss-120b`) works out which of 
 | Web | open a URL, search the web, read a web page |
 | Files | list folders, send a file, **read a file** (text, code, Word, PDF), find files, make folders, move, delete (to Recycle Bin), print |
 | Shell | cmd and PowerShell commands, start a program, working directory |
-| Screen & input | screenshot, screen recording, webcam photo, clipboard, popup, Windows notification, type text, hotkeys, mouse |
+| Screen & input | read the text on the screen (OCR), screenshot, screen recording, webcam photo, clipboard, popup, Windows notification, type text, hotkeys, mouse |
 | Windows | minimize, maximize, restore or close a window, show the desktop |
 | PC settings | brightness, dark mode, Wi-Fi, sound output device, power plan, Bluetooth status |
 | Media | volume, mute, media keys, play something on YouTube/Spotify, what's playing, speak out loud |
@@ -313,6 +313,9 @@ The default step is `notify`. A cooldown keeps alerts from spamming you.
 | `/power` | buttons: lock, sleep, hibernate, restart, shutdown, logoff, abort, monitor off ⚠️ |
 | `/lock` | lock the PC |
 | `/abort` | cancel a pending shutdown/restart |
+| `/lockdown` | 🚨 emergency: locks the PC and blocks Edith until you lift it **at the PC** (`Edith.exe lockdown off`) |
+| `/restart` | restart Edith itself (asks Confirm) |
+| `/logs [n] [audit]` | last lines of Edith's log or the security audit log (secrets removed) |
 | **Shell** | |
 | `/cmd <command>` | run a cmd.exe command ⚠️ |
 | `/ps <command>` | run a PowerShell command ⚠️ |
@@ -362,6 +365,10 @@ The default step is `notify`. A cooldown keeps alerts from spamming you.
 
 **No prompt for harmless things:** opening apps, locking the PC, turning the monitor off, moving or scrolling the mouse, and opening well-known websites (YouTube, Google, GitHub, Gmail, …). If the AI wants to open a link that **isn't** well known, it still asks, so text on your screen can't trick it into sending your data to a stranger's website.
 
+**PIN for the riskiest actions (optional):** run `Edith.exe pin set` on the PC. After that, shell commands, installs, deleting/moving files, automations and shutdown/restart/log off need your 4–8 digit PIN on a keypad under the Confirm message (the digits show as ••••). Only a salted hash is stored. If someone takes over your Telegram account, they still can't do damage. **3 wrong PINs switch on lockdown.**
+
+**Lockdown:** send `/lockdown` if your phone or Telegram account is lost. The PC locks, and Edith refuses everything except status, volume and lock: no files, screenshots, commands or uploads. Only you, sitting at the PC, can lift it with `Edith.exe lockdown off`.
+
 **New powers, same care:**
 - Installing or uninstalling software, connecting/disconnecting Wi-Fi (it could cut Edith off), closing a window and printing always ask.
 - Reading a web page from an unknown site asks, unless it came from Edith's own web search. Even well-known sites can't be given links that carry data in them (forms, redirect links).
@@ -407,8 +414,12 @@ A mis-tap or a misheard voice note can never brick your PC. Ordinary commands (`
 | `Edith.exe doctor` | checks everything (✓/✗): token, users, AI brain (with a real test question), speech, actions, guardrails, autostart |
 | `Edith.exe config show` | all settings (secrets masked) |
 | `Edith.exe config set KEY VALUE` | change one setting |
-| `Edith.exe autostart on` / `off` | start Edith when you log in (a visible Task Scheduler entry) |
+| `Edith.exe autostart on` / `off` / `status` | start Edith 30 s after you sign in (a visible Task Scheduler entry; no admin needed, works on battery) |
 | `Edith.exe logs` / `logs --audit` | recent log / security audit log |
+| `Edith.exe pin set` / `off` / `status` | PIN for the riskiest actions, typed on a keypad in Telegram |
+| `Edith.exe lockdown on` / `off` / `status` | emergency lockdown; **the only way to lift it** |
+
+**Crash-proof:** `Edith.exe` / `start.bat` keep Edith running. If she crashes she restarts after 5 s, then 15 s, then 60 s, and gives up only after 5 crashes in 10 minutes. `/restart` uses the same mechanism.
 
 Only one copy of Edith can run at a time; a second copy refuses to start, because two copies would steal each other's Telegram messages.
 
@@ -454,7 +465,7 @@ Start with **`Edith.exe doctor`**: it tests everything and says what to fix.
 ## 13. What Edith can't do (yet)
 
 - **Operate inside apps.** She can open WhatsApp but can't type into it or send a message to a contact. The same goes for clicking buttons inside other programs.
-- **See the screen.** Screenshots go to you; the AI itself can't look at them.
+- **Understand pictures on the screen.** She can read the *text* on the screen (Windows OCR: *"what does that error say?"*), but not images or layouts.
 - **Run without the PC.** Edith runs on your PC, so if it sleeps or shuts down, she's offline. `Edith.exe autostart on` helps after a reboot.
 - **Unlimited free use.** Groq's free tier is rate-limited, while instant commands and slash commands are not.
 - **Other operating systems.** Windows only.
@@ -533,7 +544,7 @@ async def battery() -> ActionResult:
 ### 🧪 Development
 
 ```powershell
-.venv\Scripts\python -m pytest -q          # 744 tests, no network, no real OS actions
+.venv\Scripts\python -m pytest -q          # 836 tests, no network, no real OS actions
 .venv\Scripts\python -m bot.cli doctor     # environment check
 ```
 
